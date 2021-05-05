@@ -29,15 +29,13 @@ def initdb(args):
     """Initializes the metadata database"""
     print("DB: " + repr(settings.engine.url))
     db.initdb()
-    print("Done.")
+    print("Initialization done")
 
 
 def resetdb(args):
     """Resets the metadata database"""
     print("DB: " + repr(settings.engine.url))
-    if args.yes or input("This will drop existing tables "
-                         "if they exist. Proceed? "
-                         "(y/n)").upper() == "Y":
+    if args.yes or input("This will drop existing tables if they exist. Proceed? (y/n)").upper() == "Y":
         db.resetdb()
     else:
         print("Cancelled")
@@ -48,6 +46,7 @@ def upgradedb(args):
     """Upgrades the metadata database"""
     print("DB: " + repr(settings.engine.url))
     db.upgradedb()
+    print("Upgrades done")
 
 
 def check_migrations(args):
@@ -63,23 +62,25 @@ def shell(args):
 
     if url.get_backend_name() == 'mysql':
         with NamedTemporaryFile(suffix="my.cnf") as f:
-            content = textwrap.dedent(f"""
+            content = textwrap.dedent(
+                f"""
                 [client]
                 host     = {url.host}
                 user     = {url.username}
                 password = {url.password or ""}
-                port     = {url.port or ""}
+                port     = {url.port or "3306"}
                 database = {url.database}
-                """).strip()
+                """
+            ).strip()
             f.write(content.encode())
             f.flush()
             execute_interactive(["mysql", f"--defaults-extra-file={f.name}"])
     elif url.get_backend_name() == 'sqlite':
-        execute_interactive(["sqlite3", url.database]).wait()
+        execute_interactive(["sqlite3", url.database])
     elif url.get_backend_name() == 'postgresql':
         env = os.environ.copy()
         env['PGHOST'] = url.host or ""
-        env['PGPORT'] = str(url.port or "")
+        env['PGPORT'] = str(url.port or "5432")
         env['PGUSER'] = url.username or ""
         # PostgreSQL does not allow the use of PGPASSFILE if the current user is root.
         env["PGPASSWORD"] = url.password or ""

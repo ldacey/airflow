@@ -20,13 +20,13 @@
 import unittest
 from unittest import mock
 
+import pytest
 from zdesk import RateLimitError
 
 from airflow.providers.zendesk.hooks.zendesk import ZendeskHook
 
 
 class TestZendeskHook(unittest.TestCase):
-
     @mock.patch("airflow.providers.zendesk.hooks.zendesk.time")
     def test_sleeps_for_correct_interval(self, mocked_time):
         sleep_time = 10
@@ -36,14 +36,13 @@ class TestZendeskHook(unittest.TestCase):
         mock_response = mock.Mock()
         mock_response.headers.get.return_value = sleep_time
         conn_mock.call = mock.Mock(
-            side_effect=RateLimitError(msg="some message",
-                                       code="some code",
-                                       response=mock_response))
+            side_effect=RateLimitError(msg="some message", code="some code", response=mock_response)
+        )
 
         zendesk_hook = ZendeskHook("conn_id")
         zendesk_hook.get_conn = mock.Mock(return_value=conn_mock)
 
-        with self.assertRaises(ValueError):
+        with pytest.raises(ValueError):
             zendesk_hook.call("some_path", get_all_pages=False)
             mocked_time.sleep.assert_called_once_with(sleep_time)
 
@@ -56,13 +55,11 @@ class TestZendeskHook(unittest.TestCase):
         zendesk_hook.get_conn()
 
         mock_conn = mock.Mock()
-        mock_call = mock.Mock(
-            return_value={'next_page': 'https://some_host/something',
-                          'path': []})
+        mock_call = mock.Mock(return_value={'next_page': 'https://some_host/something', 'path': []})
         mock_conn.call = mock_call
         zendesk_hook.get_conn = mock.Mock(return_value=mock_conn)
         zendesk_hook.call("path", get_all_pages=False)
-        mock_call.assert_called_once_with("path", None)
+        mock_call.assert_called_once_with("path", {})
 
     @mock.patch("airflow.providers.zendesk.hooks.zendesk.Zendesk")
     def test_returns_multiple_pages_if_get_all_pages_true(self, _):
@@ -73,9 +70,7 @@ class TestZendeskHook(unittest.TestCase):
         zendesk_hook.get_conn()
 
         mock_conn = mock.Mock()
-        mock_call = mock.Mock(
-            return_value={'next_page': 'https://some_host/something',
-                          'path': []})
+        mock_call = mock.Mock(return_value={'next_page': 'https://some_host/something', 'path': []})
         mock_conn.call = mock_call
         zendesk_hook.get_conn = mock.Mock(return_value=mock_conn)
         zendesk_hook.call("path", get_all_pages=True)
@@ -91,8 +86,12 @@ class TestZendeskHook(unittest.TestCase):
         zendesk_hook = ZendeskHook("conn_id")
         zendesk_hook.get_connection = mock.Mock(return_value=conn_mock)
         zendesk_hook.get_conn()
-        mock_zendesk.assert_called_once_with(zdesk_url='https://conn_host', zdesk_email='conn_login',
-                                             zdesk_password='conn_pass', zdesk_token=True)
+        mock_zendesk.assert_called_once_with(
+            zdesk_url='https://conn_host',
+            zdesk_email='conn_login',
+            zdesk_password='conn_pass',
+            zdesk_token=True,
+        )
 
     @mock.patch("airflow.providers.zendesk.hooks.zendesk.Zendesk")
     def test_zdesk_sideloading_works_correctly(self, mock_zendesk):
@@ -104,14 +103,16 @@ class TestZendeskHook(unittest.TestCase):
 
         mock_conn = mock.Mock()
         mock_call = mock.Mock(
-            return_value={'next_page': 'https://some_host/something',
-                          'tickets': [],
-                          'users': [],
-                          'groups': []})
+            return_value={
+                'next_page': 'https://some_host/something',
+                'tickets': [],
+                'users': [],
+                'groups': [],
+            }
+        )
         mock_conn.call = mock_call
         zendesk_hook.get_conn = mock.Mock(return_value=mock_conn)
-        results = zendesk_hook.call(".../tickets.json",
-                                    query={"include": "users,groups"},
-                                    get_all_pages=False,
-                                    side_loading=True)
+        results = zendesk_hook.call(
+            ".../tickets.json", query={"include": "users,groups"}, get_all_pages=False, side_loading=True
+        )
         assert results == {'groups': [], 'users': [], 'tickets': []}

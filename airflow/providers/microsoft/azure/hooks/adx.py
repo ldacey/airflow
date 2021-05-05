@@ -18,14 +18,14 @@
 #
 
 """This module contains Azure Data Explorer hook"""
-from typing import Dict, Optional
+from typing import Any, Dict, Optional
 
 from azure.kusto.data.exceptions import KustoServiceError
 from azure.kusto.data.request import ClientRequestProperties, KustoClient, KustoConnectionStringBuilder
 from azure.kusto.data.response import KustoResponseDataSetV2
 
 from airflow.exceptions import AirflowException
-from airflow.hooks.base_hook import BaseHook
+from airflow.hooks.base import BaseHook
 
 
 class AzureDataExplorerHook(BaseHook):
@@ -74,13 +74,60 @@ class AzureDataExplorerHook(BaseHook):
                      that is initialized. It is highly recommended to create one instance
                      and use it for all queries.
 
-    :param azure_data_explorer_conn_id: Reference to the Azure Data Explorer connection.
+    :param azure_data_explorer_conn_id: Reference to the
+        :ref:`Azure Data Explorer connection<howto/connection:adx>`.
     :type azure_data_explorer_conn_id: str
     """
 
-    def __init__(
-            self,
-            azure_data_explorer_conn_id: str = 'azure_data_explorer_default'):
+    conn_name_attr = 'azure_data_explorer_conn_id'
+    default_conn_name = 'azure_data_explorer_default'
+    conn_type = 'azure_data_explorer'
+    hook_name = 'Azure Data Explorer'
+
+    @staticmethod
+    def get_connection_form_widgets() -> Dict[str, Any]:
+        """Returns connection widgets to add to connection form"""
+        from flask_appbuilder.fieldwidgets import BS3PasswordFieldWidget, BS3TextFieldWidget
+        from flask_babel import lazy_gettext
+        from wtforms import PasswordField, StringField
+
+        return {
+            "extra__azure_data_explorer__auth_method": StringField(
+                lazy_gettext('Tenant ID'), widget=BS3TextFieldWidget()
+            ),
+            "extra__azure_data_explorer__tenant": StringField(
+                lazy_gettext('Authentication Method'), widget=BS3TextFieldWidget()
+            ),
+            "extra__azure_data_explorer__certificate": PasswordField(
+                lazy_gettext('Application PEM Certificate'), widget=BS3PasswordFieldWidget()
+            ),
+            "extra__azure_data_explorer__thumbprint": PasswordField(
+                lazy_gettext('Application Certificate Thumbprint'), widget=BS3PasswordFieldWidget()
+            ),
+        }
+
+    @staticmethod
+    def get_ui_field_behaviour() -> Dict:
+        """Returns custom field behaviour"""
+        return {
+            "hidden_fields": ['schema', 'port', 'extra'],
+            "relabeling": {
+                'login': 'Auth Username',
+                'password': 'Auth Password',
+                'host': 'Data Explorer Cluster Url',
+            },
+            "placeholders": {
+                'login': 'varies with authentication method',
+                'password': 'varies with authentication method',
+                'host': 'cluster url',
+                'extra__azure_data_explorer__auth_method': 'AAD_APP/AAD_APP_CERT/AAD_CREDS/AAD_DEVICE',
+                'extra__azure_data_explorer__tenant': 'used with AAD_APP/AAD_APP_CERT/AAD_CREDS',
+                'extra__azure_data_explorer__certificate': 'used with AAD_APP_CERT',
+                'extra__azure_data_explorer__thumbprint': 'used with AAD_APP_CERT',
+            },
+        }
+
+    def __init__(self, azure_data_explorer_conn_id: str = default_conn_name) -> None:
         super().__init__()
         self.conn_id = azure_data_explorer_conn_id
         self.connection = self.get_conn()
@@ -92,42 +139,50 @@ class AzureDataExplorerHook(BaseHook):
         if not cluster:
             raise AirflowException('Host connection option is required')
 
-        def get_required_param(name):
+        def get_required_param(name: str) -> str:
             """Extract required parameter from extra JSON, raise exception if not found"""
             value = conn.extra_dejson.get(name)
             if not value:
-                raise AirflowException(
-                    'Extra connection option is missing required parameter: `{}`'.
-                    format(name))
+                raise AirflowException(f'Extra connection option is missing required parameter: `{name}`')
             return value
 
-        auth_method = get_required_param('auth_method')
+        auth_method = get_required_param('auth_method') or get_required_param(
+            'extra__azure_data_explorer__auth_method'
+        )
 
         if auth_method == 'AAD_APP':
+            tenant = get_required_param('tenant') or get_required_param('extra__azure_data_explorer__tenant')
             kcsb = KustoConnectionStringBuilder.with_aad_application_key_authentication(
-                cluster, conn.login, conn.password,
-                get_required_param('tenant'))
+                cluster, conn.login, conn.password, tenant
+            )
         elif auth_method == 'AAD_APP_CERT':
+            certificate = get_required_param('certificate') or get_required_param(
+                'extra__azure_data_explorer__certificate'
+            )
+            thumbprint = get_required_param('thumbprint') or get_required_param(
+                'extra__azure_data_explorer__thumbprint'
+            )
+            tenant = get_required_param('tenant') or get_required_param('extra__azure_data_explorer__tenant')
             kcsb = KustoConnectionStringBuilder.with_aad_application_certificate_authentication(
-                cluster, conn.login, get_required_param('certificate'),
-                get_required_param('thumbprint'), get_required_param('tenant'))
+                cluster,
+                conn.login,
+                certificate,
+                thumbprint,
+                tenant,
+            )
         elif auth_method == 'AAD_CREDS':
+            tenant = get_required_param('tenant') or get_required_param('extra__azure_data_explorer__tenant')
             kcsb = KustoConnectionStringBuilder.with_aad_user_password_authentication(
-                cluster, conn.login, conn.password,
-                get_required_param('tenant'))
+                cluster, conn.login, conn.password, tenant
+            )
         elif auth_method == 'AAD_DEVICE':
-            kcsb = KustoConnectionStringBuilder.with_aad_device_authentication(
-                cluster)
+            kcsb = KustoConnectionStringBuilder.with_aad_device_authentication(cluster)
         else:
-            raise AirflowException(
-                'Unknown authentication method: {}'.format(auth_method))
+            raise AirflowException(f'Unknown authentication method: {auth_method}')
 
         return KustoClient(kcsb)
 
-    def run_query(self,
-                  query: str,
-                  database: str,
-                  options: Optional[Dict] = None) -> KustoResponseDataSetV2:
+    def run_query(self, query: str, database: str, options: Optional[Dict] = None) -> KustoResponseDataSetV2:
         """
         Run KQL query using provided configuration, and return
         `azure.kusto.data.response.KustoResponseDataSet` instance.
@@ -147,8 +202,6 @@ class AzureDataExplorerHook(BaseHook):
             for k, v in options.items():
                 properties.set_option(k, v)
         try:
-            return self.connection.execute(
-                database, query, properties=properties)
+            return self.connection.execute(database, query, properties=properties)
         except KustoServiceError as error:
-            raise AirflowException(
-                'Error running Kusto query: {}'.format(error))
+            raise AirflowException(f'Error running Kusto query: {error}')

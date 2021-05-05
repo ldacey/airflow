@@ -26,7 +26,6 @@ TEST_HDFS_PATH = 'hdfs://user/hive/warehouse/airflow.db/static_babynames'
 
 
 class TestWebHdfsSensor(TestHiveEnvironment):
-
     @mock.patch('airflow.providers.apache.hdfs.hooks.webhdfs.WebHDFSHook')
     def test_poke(self, mock_hook):
         sensor = WebHdfsSensor(
@@ -36,7 +35,7 @@ class TestWebHdfsSensor(TestHiveEnvironment):
         )
         exists = sensor.poke(dict())
 
-        self.assertTrue(exists)
+        assert exists
 
         mock_hook.return_value.check_for_path.assert_called_once_with(hdfs_path=TEST_HDFS_PATH)
         mock_hook.assert_called_once_with(TEST_HDFS_CONN)
@@ -52,7 +51,7 @@ class TestWebHdfsSensor(TestHiveEnvironment):
         )
         exists = sensor.poke(dict())
 
-        self.assertFalse(exists)
+        assert not exists
 
         mock_hook.return_value.check_for_path.assert_called_once_with(hdfs_path=TEST_HDFS_PATH)
         mock_hook.assert_called_once_with(TEST_HDFS_CONN)

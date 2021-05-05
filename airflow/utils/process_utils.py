@@ -16,9 +16,7 @@
 # specific language governing permissions and limitations
 # under the License.
 #
-"""
-Utilities for running or stopping processes
-"""
+"""Utilities for running or stopping processes"""
 import errno
 import logging
 import os
@@ -43,12 +41,15 @@ log = logging.getLogger(__name__)
 
 # When killing processes, time to wait after issuing a SIGTERM before issuing a
 # SIGKILL.
-DEFAULT_TIME_TO_WAIT_AFTER_SIGTERM = conf.getint(
-    'core', 'KILLED_TASK_CLEANUP_TIME'
-)
+DEFAULT_TIME_TO_WAIT_AFTER_SIGTERM = conf.getint('core', 'KILLED_TASK_CLEANUP_TIME')
 
 
-def reap_process_group(pgid, logger, sig=signal.SIGTERM, timeout=DEFAULT_TIME_TO_WAIT_AFTER_SIGTERM):
+def reap_process_group(
+    pgid: int,
+    logger,
+    sig: 'signal.Signals' = signal.SIGTERM,
+    timeout: int = DEFAULT_TIME_TO_WAIT_AFTER_SIGTERM,
+) -> Dict[int, int]:
     """
     Tries really hard to terminate all processes in the group (including grandchildren). Will send
     sig (SIGTERM) to the process group of pid. If any process is alive after timeout
@@ -132,20 +133,16 @@ def execute_in_subprocess(cmd: List[str]):
     :type cmd: List[str]
     """
     log.info("Executing cmd: %s", " ".join([shlex.quote(c) for c in cmd]))
-    proc = subprocess.Popen(
-        cmd,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-        bufsize=0,
-        close_fds=True
-    )
-    log.info("Output:")
-    if proc.stdout:
-        with proc.stdout:
-            for line in iter(proc.stdout.readline, b''):
-                log.info("%s", line.decode().rstrip())
+    with subprocess.Popen(
+        cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, bufsize=0, close_fds=True
+    ) as proc:
+        log.info("Output:")
+        if proc.stdout:
+            with proc.stdout:
+                for line in iter(proc.stdout.readline, b''):
+                    log.info("%s", line.decode().rstrip())
 
-    exit_code = proc.wait()
+        exit_code = proc.wait()
     if exit_code != 0:
         raise subprocess.CalledProcessError(exit_code, cmd)
 
@@ -165,24 +162,18 @@ def execute_interactive(cmd: List[str], **kwargs):
     master_fd, slave_fd = pty.openpty()
     try:  # pylint: disable=too-many-nested-blocks
         # use os.setsid() make it run in a new process group, or bash job control will not be enabled
-        proc = subprocess.Popen(
-            cmd,
-            stdin=slave_fd,
-            stdout=slave_fd,
-            stderr=slave_fd,
-            universal_newlines=True,
-            **kwargs
-        )
-
-        while proc.poll() is None:
-            readable_fbs, _, _ = select.select([sys.stdin, master_fd], [], [])
-            if sys.stdin in readable_fbs:
-                input_data = os.read(sys.stdin.fileno(), 10240)
-                os.write(master_fd, input_data)
-            if master_fd in readable_fbs:
-                output_data = os.read(master_fd, 10240)
-                if output_data:
-                    os.write(sys.stdout.fileno(), output_data)
+        with subprocess.Popen(
+            cmd, stdin=slave_fd, stdout=slave_fd, stderr=slave_fd, universal_newlines=True, **kwargs
+        ) as proc:
+            while proc.poll() is None:
+                readable_fbs, _, _ = select.select([sys.stdin, master_fd], [], [])
+                if sys.stdin in readable_fbs:
+                    input_data = os.read(sys.stdin.fileno(), 10240)
+                    os.write(master_fd, input_data)
+                if master_fd in readable_fbs:
+                    output_data = os.read(master_fd, 10240)
+                    if output_data:
+                        os.write(sys.stdout.fileno(), output_data)
     finally:
         # restore tty settings back
         termios.tcsetattr(sys.stdin, termios.TCSADRAIN, old_tty)
@@ -191,7 +182,7 @@ def execute_interactive(cmd: List[str], **kwargs):
 def kill_child_processes_by_pids(pids_to_kill: List[int], timeout: int = 5) -> None:
     """
     Kills child processes for the current process.
- 
+
     First, it sends the SIGTERM signal, and after the time specified by the `timeout` parameter, sends
     the SIGKILL signal, if the process is still alive.
 
@@ -240,10 +231,7 @@ def patch_environ(new_env_variables: Dict[str, str]):
 
     :param new_env_variables: Environment variables to set
     """
-    current_env_state = {
-        key: os.environ.get(key)
-        for key in new_env_variables.keys()
-    }
+    current_env_state = {key: os.environ.get(key) for key in new_env_variables.keys()}
     os.environ.update(new_env_variables)
     try:  # pylint: disable=too-many-nested-blocks
         yield

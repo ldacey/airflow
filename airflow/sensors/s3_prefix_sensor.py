@@ -15,7 +15,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""This module is deprecated. Please use `airflow.providers.amazon.aws.sensors.s3_prefix`."""
+"""This module is deprecated. Please use :mod:`airflow.providers.amazon.aws.sensors.s3_prefix`."""
 
 import warnings
 
@@ -24,5 +24,6 @@ from airflow.providers.amazon.aws.sensors.s3_prefix import S3PrefixSensor  # noq
 
 warnings.warn(
     "This module is deprecated. Please use `airflow.providers.amazon.aws.sensors.s3_prefix`.",
-    DeprecationWarning, stacklevel=2
+    DeprecationWarning,
+    stacklevel=2,
 )

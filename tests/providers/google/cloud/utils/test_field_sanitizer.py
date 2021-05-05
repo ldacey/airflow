@@ -18,6 +18,8 @@
 import unittest
 from copy import deepcopy
 
+import pytest
+
 from airflow.providers.google.cloud.utils.field_sanitizer import GcpBodyFieldSanitizer
 
 
@@ -29,7 +31,7 @@ class TestGcpBodyFieldSanitizer(unittest.TestCase):
         sanitizer = GcpBodyFieldSanitizer(fields_to_sanitize)
         sanitizer.sanitize(body)
 
-        self.assertEqual({}, body)
+        assert {} == body
 
     def test_sanitize_should_not_fail_with_none_body(self):
         body = None
@@ -38,7 +40,7 @@ class TestGcpBodyFieldSanitizer(unittest.TestCase):
         sanitizer = GcpBodyFieldSanitizer(fields_to_sanitize)
         sanitizer.sanitize(body)
 
-        self.assertIsNone(body)
+        assert body is None
 
     def test_sanitize_should_fail_with_none_fields(self):
         body = {}
@@ -46,7 +48,7 @@ class TestGcpBodyFieldSanitizer(unittest.TestCase):
 
         sanitizer = GcpBodyFieldSanitizer(fields_to_sanitize)
 
-        with self.assertRaises(TypeError):
+        with pytest.raises(TypeError):
             sanitizer.sanitize(body)
 
     def test_sanitize_should_not_fail_if_field_is_absent_in_body(self):
@@ -56,7 +58,7 @@ class TestGcpBodyFieldSanitizer(unittest.TestCase):
         sanitizer = GcpBodyFieldSanitizer(fields_to_sanitize)
         sanitizer.sanitize(body)
 
-        self.assertEqual({}, body)
+        assert {} == body
 
     def test_sanitize_should_not_remove_fields_for_incorrect_specification(self):
         actual_body = [
@@ -70,7 +72,7 @@ class TestGcpBodyFieldSanitizer(unittest.TestCase):
         sanitizer = GcpBodyFieldSanitizer(fields_to_sanitize)
         sanitizer.sanitize(body)
 
-        self.assertEqual(actual_body, body)
+        assert actual_body == body
 
     def test_sanitize_should_remove_all_fields_from_root_level(self):
         body = {"kind": "compute#instanceTemplate", "name": "instance"}
@@ -79,7 +81,7 @@ class TestGcpBodyFieldSanitizer(unittest.TestCase):
         sanitizer = GcpBodyFieldSanitizer(fields_to_sanitize)
         sanitizer.sanitize(body)
 
-        self.assertEqual({"name": "instance"}, body)
+        assert {"name": "instance"} == body
 
     def test_sanitize_should_remove_for_multiple_fields_from_root_level(self):
         body = {"kind": "compute#instanceTemplate", "name": "instance"}
@@ -88,24 +90,28 @@ class TestGcpBodyFieldSanitizer(unittest.TestCase):
         sanitizer = GcpBodyFieldSanitizer(fields_to_sanitize)
         sanitizer.sanitize(body)
 
-        self.assertEqual({}, body)
+        assert {} == body
 
     def test_sanitize_should_remove_all_fields_in_a_list_value(self):
-        body = {"fields": [
-            {"kind": "compute#instanceTemplate", "name": "instance"},
-            {"kind": "compute#instanceTemplate1", "name": "instance1"},
-            {"kind": "compute#instanceTemplate2", "name": "instance2"},
-        ]}
+        body = {
+            "fields": [
+                {"kind": "compute#instanceTemplate", "name": "instance"},
+                {"kind": "compute#instanceTemplate1", "name": "instance1"},
+                {"kind": "compute#instanceTemplate2", "name": "instance2"},
+            ]
+        }
         fields_to_sanitize = ["fields.kind"]
 
         sanitizer = GcpBodyFieldSanitizer(fields_to_sanitize)
         sanitizer.sanitize(body)
 
-        self.assertEqual({"fields": [
-            {"name": "instance"},
-            {"name": "instance1"},
-            {"name": "instance2"},
-        ]}, body)
+        assert {
+            "fields": [
+                {"name": "instance"},
+                {"name": "instance1"},
+                {"name": "instance2"},
+            ]
+        } == body
 
     def test_sanitize_should_remove_all_fields_in_any_nested_body(self):
         fields_to_sanitize = [
@@ -130,37 +136,24 @@ class TestGcpBodyFieldSanitizer(unittest.TestCase):
                         "kind": "compute#attachedDisk",
                         "type": "PERSISTENT",
                         "mode": "READ_WRITE",
-                    }
+                    },
                 ],
-                "metadata": {
-                    "kind": "compute#metadata",
-                    "fingerprint": "GDPUYxlwHe4="
-                },
-            }
+                "metadata": {"kind": "compute#metadata", "fingerprint": "GDPUYxlwHe4="},
+            },
         }
         sanitizer = GcpBodyFieldSanitizer(fields_to_sanitize)
         sanitizer.sanitize(body)
 
-        self.assertEqual({
+        assert {
             "name": "instance",
             "properties": {
                 "disks": [
-                    {
-                        "name": "a",
-                        "type": "PERSISTENT",
-                        "mode": "READ_WRITE"
-                    },
-                    {
-                        "name": "b",
-                        "type": "PERSISTENT",
-                        "mode": "READ_WRITE"
-                    }
+                    {"name": "a", "type": "PERSISTENT", "mode": "READ_WRITE"},
+                    {"name": "b", "type": "PERSISTENT", "mode": "READ_WRITE"},
                 ],
-                "metadata": {
-                    "fingerprint": "GDPUYxlwHe4="
-                }
-            }
-        }, body)
+                "metadata": {"fingerprint": "GDPUYxlwHe4="},
+            },
+        } == body
 
     def test_sanitize_should_not_fail_if_specification_has_none_value(self):
         fields_to_sanitize = [
@@ -169,23 +162,12 @@ class TestGcpBodyFieldSanitizer(unittest.TestCase):
             "properties.metadata.kind",
         ]
 
-        body = {
-            "kind": "compute#instanceTemplate",
-            "name": "instance",
-            "properties": {
-                "disks": None
-            }
-        }
+        body = {"kind": "compute#instanceTemplate", "name": "instance", "properties": {"disks": None}}
 
         sanitizer = GcpBodyFieldSanitizer(fields_to_sanitize)
         sanitizer.sanitize(body)
 
-        self.assertEqual({
-            "name": "instance",
-            "properties": {
-                "disks": None
-            }
-        }, body)
+        assert {"name": "instance", "properties": {"disks": None}} == body
 
     def test_sanitize_should_not_fail_if_no_specification_matches(self):
         fields_to_sanitize = [
@@ -193,22 +175,12 @@ class TestGcpBodyFieldSanitizer(unittest.TestCase):
             "properties.metadata.kind2",
         ]
 
-        body = {
-            "name": "instance",
-            "properties": {
-                "disks": None
-            }
-        }
+        body = {"name": "instance", "properties": {"disks": None}}
 
         sanitizer = GcpBodyFieldSanitizer(fields_to_sanitize)
         sanitizer.sanitize(body)
 
-        self.assertEqual({
-            "name": "instance",
-            "properties": {
-                "disks": None
-            }
-        }, body)
+        assert {"name": "instance", "properties": {"disks": None}} == body
 
     def test_sanitize_should_not_fail_if_type_in_body_do_not_match_with_specification(self):
         fields_to_sanitize = [
@@ -216,19 +188,9 @@ class TestGcpBodyFieldSanitizer(unittest.TestCase):
             "properties.metadata.kind2",
         ]
 
-        body = {
-            "name": "instance",
-            "properties": {
-                "disks": 1
-            }
-        }
+        body = {"name": "instance", "properties": {"disks": 1}}
 
         sanitizer = GcpBodyFieldSanitizer(fields_to_sanitize)
         sanitizer.sanitize(body)
 
-        self.assertEqual({
-            "name": "instance",
-            "properties": {
-                "disks": 1
-            }
-        }, body)
+        assert {"name": "instance", "properties": {"disks": 1}} == body

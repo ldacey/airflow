@@ -19,9 +19,15 @@
 # This is a YAML-formatted file.
 # Declare variables to be passed into your templates.
 
+# Provide a name to substitute for the full names of resources
+fullnameOverride: ""
+
+# Provide a name to substitute for the name of the chart
+nameOverride: ""
+
 # User and group of airflow user
 uid: 50000
-gid: 50000
+gid: 0
 
 # Airflow home directory
 # Used for mount paths
@@ -31,7 +37,7 @@ airflowHome: "/opt/airflow"
 defaultAirflowRepository: apache/airflow
 
 # Default airflow tag to deploy
-defaultAirflowTag: 1.10.10.1-alpha2-python3.6
+defaultAirflowTag: 2.0.2
 
 
 # Select certain nodes for airflow pods.
@@ -106,15 +112,18 @@ networkPolicies:
 airflowPodAnnotations: {}
 
 # Enable RBAC (default on most clusters these days)
-rbacEnabled: true
+rbac:
+  # Specifies whether RBAC resources should be created
+  create: true
 
 # Airflow executor
-# Options: SequentialExecutor, LocalExecutor, CeleryExecutor, KubernetesExecutor
-executor: "KubernetesExecutor"
+# Options: LocalExecutor, CeleryExecutor, KubernetesExecutor, CeleryKubernetesExecutor
+executor: "CeleryExecutor"
 
-# If this is true and using LocalExecutor/SequentialExecutor/KubernetesExecutor, the scheudler's
+# If this is true and using LocalExecutor/KubernetesExecutor/CeleryKubernetesExecutor, the scheduler's
 # service account will have access to communicate with the api-server and launch pods.
-# If this is true and using the CeleryExecutor, the workers will be able to launch pods.
+# If this is true and using CeleryExecutor/KubernetesExecutor/CeleryKubernetesExecutor, the workers
+# will be able to launch pods.
 allowPodLaunching: true
 
 # Images
@@ -123,25 +132,33 @@ images:
     repository: ~
     tag: ~
     pullPolicy: IfNotPresent
+  pod_template:
+    repository: ~
+    tag: ~
+    pullPolicy: IfNotPresent
   flower:
     repository: ~
     tag: ~
     pullPolicy: IfNotPresent
   statsd:
-    repository: astronomerinc/ap-statsd-exporter
-    tag: 0.11.0
+    repository: apache/airflow
+    tag: airflow-statsd-exporter-2021.04.28-v0.17.0
     pullPolicy: IfNotPresent
   redis:
     repository: redis
     tag: 6-buster
     pullPolicy: IfNotPresent
   pgbouncer:
-    repository: astronomerinc/ap-pgbouncer
-    tag: 1.8.1
+    repository: apache/airflow
+    tag: airflow-pgbouncer-2021.04.28-1.14.0
     pullPolicy: IfNotPresent
   pgbouncerExporter:
-    repository: astronomerinc/ap-pgbouncer-exporter
-    tag: 0.5.0-1
+    repository: apache/airflow
+    tag: airflow-pgbouncer-exporter-2021.04.28-0.5.0
+    pullPolicy: IfNotPresent
+  gitSync:
+    repository: k8s.gcr.io/git-sync/git-sync
+    tag: v3.3.0
     pullPolicy: IfNotPresent
 
 # Environment variables for all airflow containers
@@ -155,16 +172,69 @@ secret: []
 #   secretName: ""
 #   secretKey: ""
 
-# Airflow database config
+# Extra secrets that will be managed by the chart
+# (You can use them with extraEnv or extraEnvFrom or some of the extraVolumes values).
+# The format is "key/value" where
+#    * key (can be templated) is the name of the secret that will be created
+#    * value: an object with the standard 'data' or 'stringData' key (or both).
+#          The value associated with those keys must be a string (can be templated)
+extraSecrets: {}
+# eg:
+# extraSecrets:
+#   '{{ .Release.Name }}-airflow-connections':
+#     data: |
+#       AIRFLOW_CONN_GCP: 'base64_encoded_gcp_conn_string'
+#       AIRFLOW_CONN_AWS: 'base64_encoded_aws_conn_string'
+#     stringData: |
+#       AIRFLOW_CONN_OTHER: 'other_conn'
+#   '{{ .Release.Name }}-other-secret-name-suffix': |
+#     data: |
+#        ...
+
+# Extra ConfigMaps that will be managed by the chart
+# (You can use them with extraEnv or extraEnvFrom or some of the extraVolumes values).
+# The format is "key/value" where
+#    * key (can be templated) is the name of the configmap that will be created
+#    * value: an object with the standard 'data' key.
+#          The value associated with this keys must be a string (can be templated)
+extraConfigMaps: {}
+# eg:
+# extraConfigMaps:
+#   '{{ .Release.Name }}-airflow-variables':
+#     data: |
+#       AIRFLOW_VAR_HELLO_MESSAGE: "Hi!"
+#       AIRFLOW_VAR_KUBERNETES_NAMESPACE: "{{ .Release.Namespace }}"
+
+# Extra env 'items' that will be added to the definition of airflow containers
+# a string is expected (can be templated).
+extraEnv: ~
+# eg:
+# extraEnv: |
+#   - name: AIRFLOW__CORE__LOAD_EXAMPLES
+#     value: 'True'
+
+# Extra envFrom 'items' that will be added to the definition of airflow containers
+# A string is expected (can be templated).
+extraEnvFrom: ~
+# eg:
+# extraEnvFrom: |
+#   - secretRef:
+#       name: '{{ .Release.Name }}-airflow-connections'
+#   - configMapRef:
+#       name: '{{ .Release.Name }}-airflow-variables'
+
+# Airflow database & redis config
 data:
   # If secret names are provided, use those secrets
   metadataSecretName: ~
   resultBackendSecretName: ~
+  brokerUrlSecretName: ~
 
   # Otherwise pass connection values in
   metadataConnection:
     user: postgres
     pass: postgres
+    protocol: postgresql
     host: ~
     port: 5432
     db: postgres
@@ -172,19 +242,91 @@ data:
   resultBackendConnection:
     user: postgres
     pass: postgres
+    protocol: postgresql
     host: ~
     port: 5432
     db: postgres
     sslmode: disable
+  brokerUrl: ~
 
 # Fernet key settings
 fernetKey: ~
 fernetKeySecretName: ~
 
+
+# In order to use kerberos you need to create secret containing the keytab file
+# The secret name should follow naming convention of the application where resources are
+# name {{ .Release-name }}-<POSTFIX>. In case of the keytab file, the postfix is "kerberos-keytab"
+# So if your release is named "my-release" the name of the secret should be "my-release-kerberos-keytab"
+#
+# The Keytab content should be available in the "kerberos.keytab" key of the secret.
+#
+#  apiVersion: v1
+#  kind: Secret
+#  data:
+#    kerberos.keytab: <base64_encoded keytab file content>
+#  type: Opaque
+#
+#
+#  If you have such keytab file you can do it with similar
+#
+#  kubectl create secret generic {{ .Release.name }}-kerberos-keytab --from-file=kerberos.keytab
+#
+kerberos:
+  enabled: false
+  ccacheMountPath: '/var/kerberos-ccache'
+  ccacheFileName: 'cache'
+  configPath: '/etc/krb5.conf'
+  keytabPath: '/etc/airflow.keytab'
+  principal: 'airflow@FOO.COM'
+  reinitFrequency: 3600
+  config: |
+    # This is an example config showing how you can use templating and how "example" config
+    # might look like. It works with the test kerberos server that we are using during integration
+    # testing at Apache Airflow (see `scripts/ci/docker-compose/integration-kerberos.yml` but in
+    # order to make it production-ready you must replace it with your own configuration that
+    # Matches your kerberos deployment. Administrators of your Kerberos instance should
+    # provide the right configuration.
+
+    [logging]
+    default = "FILE:{{ template "airflow_logs_no_quote" . }}/kerberos_libs.log"
+    kdc = "FILE:{{ template "airflow_logs_no_quote" . }}/kerberos_kdc.log"
+    admin_server = "FILE:{{ template "airflow_logs_no_quote" . }}/kadmind.log"
+
+    [libdefaults]
+    default_realm = FOO.COM
+    ticket_lifetime = 10h
+    renew_lifetime = 7d
+    forwardable = true
+
+    [realms]
+    FOO.COM = {
+      kdc = kdc-server.foo.com
+      admin_server = admin_server.foo.com
+    }
+
 # Airflow Worker Config
 workers:
   # Number of airflow celery workers in StatefulSet
   replicas: 1
+  # Update Strategy when worker is deployed as a StatefulSet
+  updateStrategy: ~
+  # Update Strategy when worker is deployed as a Deployment
+  strategy:
+    rollingUpdate:
+      maxSurge: "100%"
+      maxUnavailable: "50%"
+
+  # Create ServiceAccount
+  serviceAccount:
+    # Specifies whether a ServiceAccount should be created
+    create: true
+    # The name of the ServiceAccount to use.
+    # If not set and create is true, a name is generated using the release name
+    # name:
+
+    # Annotations to add to worker kubernetes service account.
+    annotations: {}
 
   # Allow KEDA autoscaling.
   # Persistence.enabled must be set to false to use KEDA.
@@ -214,6 +356,17 @@ workers:
     # of local-path provisioner.
     fixPermissions: false
 
+  kerberosSidecar:
+    # Enable kerberos sidecar
+    enabled: false
+    resources: {}
+    #  limits:
+    #   cpu: 100m
+    #   memory: 128Mi
+    #  requests:
+    #   cpu: 100m
+    #   memory: 128Mi
+
   resources: {}
   #  limits:
   #   cpu: 100m
@@ -229,8 +382,52 @@ workers:
   # when it wants to scale a node down.
   safeToEvict: true
 
+  # Launch additional containers into worker.
+  extraContainers: []
+
+  # Mount additional volumes into worker.
+  extraVolumes: []
+  extraVolumeMounts: []
+
+  # Select certain nodes for airflow worker pods.
+  nodeSelector: {}
+  affinity: {}
+  tolerations: []
+  # hostAliases to use in worker pods.
+  # See:
+  # https://kubernetes.io/docs/concepts/services-networking/add-entries-to-pod-etc-hosts-with-host-aliases/
+  hostAliases: []
+  # - ip: "127.0.0.2"
+  #   hostnames:
+  #   - "test.hostname.one"
+  # - ip: "127.0.0.3"
+  #   hostnames:
+  #   - "test.hostname.two"
+
 # Airflow scheduler settings
 scheduler:
+  # If the scheduler stops heartbeating for 5 minutes (10*30s) kill the
+  # scheduler and let Kubernetes restart it
+  livenessProbe:
+    initialDelaySeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 10
+    periodSeconds: 30
+  # Airflow 2.0 allows users to run multiple schedulers,
+  # However this feature is only recommended for MySQL 8+ and Postgres
+  replicas: 1
+
+  # Create ServiceAccount
+  serviceAccount:
+    # Specifies whether a ServiceAccount should be created
+    create: true
+    # The name of the ServiceAccount to use.
+    # If not set and create is true, a name is generated using the release name
+    # name:
+
+    # Annotations to add to scheduler kubernetes service account.
+    annotations: {}
+
   # Scheduler pod disruption budget
   podDisruptionBudget:
     enabled: false
@@ -255,8 +452,48 @@ scheduler:
   # when it wants to scale a node down.
   safeToEvict: true
 
+  # Launch additional containers into scheduler.
+  extraContainers: []
+
+  # Mount additional volumes into scheduler.
+  extraVolumes: []
+  extraVolumeMounts: []
+
+  # Select certain nodes for airflow scheduler pods.
+  nodeSelector: {}
+  affinity: {}
+  tolerations: []
+
+# Airflow create user job settings
+createUserJob:
+  # Create ServiceAccount
+  serviceAccount:
+    # Specifies whether a ServiceAccount should be created
+    create: true
+    # The name of the ServiceAccount to use.
+    # If not set and create is true, a name is generated using the release name
+    # name:
+
+    # Annotations to add to create user kubernetes service account.
+    annotations: {}
+
+# Airflow database migration job settings
+migrateDatabaseJob:
+
+  # Create ServiceAccount
+  serviceAccount:
+    # Specifies whether a ServiceAccount should be created
+    create: true
+    # The name of the ServiceAccount to use.
+    # If not set and create is true, a name is generated using the release name
+    # name:
+
+    # Annotations to add to migrate database job kubernetes service account.
+    annotations: {}
+
 # Airflow webserver settings
 webserver:
+  allowPodLogReading: true
   livenessProbe:
     initialDelaySeconds: 15
     timeoutSeconds: 30
@@ -271,6 +508,17 @@ webserver:
 
   # Number of webservers
   replicas: 1
+
+  # Create ServiceAccount
+  serviceAccount:
+    # Specifies whether a ServiceAccount should be created
+    create: true
+    # The name of the ServiceAccount to use.
+    # If not set and create is true, a name is generated using the release name
+    # name:
+
+    # Annotations to add to webserver kubernetes service account.
+    annotations: {}
 
   # Additional network policies as needed
   extraNetworkPolicies: []
@@ -292,6 +540,9 @@ webserver:
     firstName: admin
     lastName: user
     password: admin
+
+  # Launch additional containers into webserver.
+  extraContainers: []
 
   # Mount additional volumes into webserver.
   extraVolumes: []
@@ -315,23 +566,15 @@ webserver:
     ## service annotations
     annotations: {}
 
+  # Select certain nodes for airflow webserver pods.
+  nodeSelector: {}
+  affinity: {}
+  tolerations: []
+
 # Flower settings
 flower:
-  # Additional network policies as needed
-  extraNetworkPolicies: []
-  resources: {}
-  #   limits:
-  #     cpu: 100m
-  #     memory: 128Mi
-  #   requests:
-  #     cpu: 100m
-  #     memory: 128Mi
-
-  service:
-    type: ClusterIP
-
-# Statsd settings
-statsd:
+  # Enable flower.
+  # If True, and using CeleryExecutor/CeleryKubernetesExecutor, will deploy flower app.
   enabled: true
   # Additional network policies as needed
   extraNetworkPolicies: []
@@ -343,13 +586,86 @@ statsd:
   #     cpu: 100m
   #     memory: 128Mi
 
+  # Create ServiceAccount
+  serviceAccount:
+    # Specifies whether a ServiceAccount should be created
+    create: true
+    # The name of the ServiceAccount to use.
+    # If not set and create is true, a name is generated using the release name
+    # name:
+
+    # Annotations to add to worker kubernetes service account.
+    annotations: {}
+
+  # A secret containing the connection
+  secretName: ~
+
+  # Else, if username and password are set, create secret from username and password
+  username: ~
+  password: ~
+
+  service:
+    type: ClusterIP
+
+  # Select certain nodes for airflow flower pods.
+  nodeSelector: {}
+  affinity: {}
+  tolerations: []
+
+# Statsd settings
+statsd:
+  enabled: true
+
+  # Create ServiceAccount
+  serviceAccount:
+    # Specifies whether a ServiceAccount should be created
+    create: true
+    # The name of the ServiceAccount to use.
+    # If not set and create is true, a name is generated using the release name
+    # name:
+
+    # Annotations to add to worker kubernetes service account.
+    annotations: {}
+
+  # Additional network policies as needed
+  extraNetworkPolicies: []
+  resources: {}
+  #   limits:
+  #     cpu: 100m
+  #     memory: 128Mi
+  #   requests:
+  #     cpu: 100m
+  #     memory: 128Mi
+
   service:
     extraAnnotations: {}
+
+  # Select certain nodes for statsd pods.
+  nodeSelector: {}
+  affinity: {}
+  tolerations: []
+
+  # Additional mappings for statsd exporter.
+  extraMappings: []
+
+  uid: 65534
 
 # Pgbouncer settings
 pgbouncer:
   # Enable pgbouncer
   enabled: false
+
+  # Create ServiceAccount
+  serviceAccount:
+    # Specifies whether a ServiceAccount should be created
+    create: true
+    # The name of the ServiceAccount to use.
+    # If not set and create is true, a name is generated using the release name
+    # name:
+
+    # Annotations to add to worker kubernetes service account.
+    annotations: {}
+
   # Additional network policies as needed
   extraNetworkPolicies: []
 
@@ -360,6 +676,21 @@ pgbouncer:
   # Maximum clients that can connect to pgbouncer (higher = more file descriptors)
   maxClientConn: 100
 
+  # supply the name of existing secret with pgbouncer.ini and users.txt defined
+  # you can load them to a k8s secret like the one below
+  #  apiVersion: v1
+  #  kind: Secret
+  #  metadata:
+  #    name: pgbouncer-config-secret
+  #  data:
+  #     pgbouncer.ini: <base64_encoded pgbouncer.ini file content>
+  #     users.txt: <base64_encoded users.txt file content>
+  #  type: Opaque
+  #
+  #  configSecretName: pgbouncer-config-secret
+  #
+  configSecretName: ~
+
   # Pgbouner pod disruption budget
   podDisruptionBudget:
     enabled: false
@@ -368,13 +699,21 @@ pgbouncer:
     config:
       maxUnavailable: 1
 
+  # Limit the resources to pgbouncerExported.
+  # When you specify the resource request the scheduler uses this information to decide which node to place
+  # the Pod on. When you specify a resource limit for a Container, the kubelet enforces those limits so
+  # that the running container is not allowed to use more of that resource than the limit you set.
+  # See: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/
+  # Example:
+  #
+  # resource:
+  #   limits:
+  #     cpu: 100m
+  #     memory: 128Mi
+  #   requests:
+  #     cpu: 100m
+  #     memory: 128Mi
   resources: {}
-    # limits:
-    #   cpu: 100m
-    #   memory: 128Mi
-    # requests:
-    #   cpu: 100m
-    #   memory: 128Mi
 
   service:
     extraAnnotations: {}
@@ -384,8 +723,36 @@ pgbouncer:
   logDisconnections: 0
   logConnections: 0
 
+  sslmode: "prefer"
+  ciphers: "normal"
+
+  ssl:
+    ca: ~
+    cert: ~
+    key: ~
+
+  # Select certain nodes for pgbouncer pods.
+  nodeSelector: {}
+  affinity: {}
+  tolerations: []
+
+  uid: 65534
+
+# Configuration for the redis provisioned by the chart
 redis:
+  enabled: true
   terminationGracePeriodSeconds: 600
+
+  # Create ServiceAccount
+  serviceAccount:
+    # Specifies whether a ServiceAccount should be created
+    create: true
+    # The name of the ServiceAccount to use.
+    # If not set and create is true, a name is generated using the release name
+    # name:
+
+    # Annotations to add to worker kubernetes service account.
+    annotations: {}
 
   persistence:
     # Enable persistent volumes
@@ -403,28 +770,34 @@ redis:
   #   cpu: 100m
   #   memory: 128Mi
 
-  # If set use as redis secret
+  # If set use as redis secret. Make sure to also set data.brokerUrlSecretName value.
   passwordSecretName: ~
-  brokerURLSecretName: ~
 
   # Else, if password is set, create secret with it,
-  # else generate a new one on install
+  # Otherwise a new password will be generated on install
   password: ~
 
   # This setting tells kubernetes that its ok to evict
   # when it wants to scale a node down.
   safeToEvict: true
 
+  # Select certain nodes for redis pods.
+  nodeSelector: {}
+  affinity: {}
+  tolerations: []
+
 # Auth secret for a private registry
 # This is used if pulling airflow images from a private registry
 registry:
   secretName: ~
 
+  # Example:
+  # connection:
+  #   user: ~
+  #   pass: ~
+  #   host: ~
+  #   email: ~
   connection: {}
-    # user: ~
-    # pass: ~
-    # host: ~
-    # email: ~
 
 # Elasticsearch logging configuration
 elasticsearch:
@@ -433,11 +806,14 @@ elasticsearch:
   # A secret containing the connection
   secretName: ~
   # Or an object representing the connection
+  # Example:
+  # connection:
+  #   user: ~
+  #   pass: ~
+  #   host: ~
+  #   port: ~
   connection: {}
-    # user: ~
-    # pass: ~
-    # host: ~
-    # port: ~
+
 
 # All ports used by chart
 ports:
@@ -456,32 +832,27 @@ quotas: {}
 # Define default/max/min values for pods and containers in namespace
 limits: []
 
-# Config Settings for pod_mutation_hook
-podMutation:
-  # Tolerations provided here would be applied using pod_mutation_hook
-  # So any pods spun up using KubernetesExecutor or KubernetesPodOperator will contain these tolerations.
-  tolerations: []
-  #  - key: "dynamic-pods"
-  #    operator: "Equal"
-  #    value: "true"
-  #    effect: "NoSchedule"
-
-  # Pods spun up would land in the node that matches the affinity
-  affinity: {}
-  #   nodeAffinity:
-  #     requiredDuringSchedulingIgnoredDuringExecution:
-  #       nodeSelectorTerms:
-  #       - matchExpressions:
-  #         - key: "company.io/dynamic-pods"
-  #           operator: In
-  #           values:
-  #           - "true"
-
 # This runs as a CronJob to cleanup old pods.
 cleanup:
   enabled: false
   # Run every 15 minutes
   schedule: "*/15 * * * *"
+
+  # Select certain nodes for airflow cleanup pods.
+  nodeSelector: {}
+  affinity: {}
+  tolerations: []
+
+  # Create ServiceAccount
+  serviceAccount:
+    # Specifies whether a ServiceAccount should be created
+    create: true
+    # The name of the ServiceAccount to use.
+    # If not set and create is true, a name is generated using the release name
+    # name:
+
+    # Annotations to add to cleanup cronjob kubernetes service account.
+    annotations: {}
 
 # Configuration for postgresql subchart
 # Not recommended for production
@@ -494,7 +865,7 @@ postgresql:
 #
 # Please note that these values are passed through the `tpl` function, so are
 # all subject to being rendered as go templates. If you need to include a
-# litera `{{` in a value, it must be expessed like this:
+# literal `{{` in a value, it must be expressed like this:
 #
 #    a: '{{ "{{ not a template }}" }}'
 #
@@ -502,32 +873,38 @@ postgresql:
 config:
   core:
     dags_folder: '{{ include "airflow_dags" . }}'
+    # This is ignored when used with the official Docker image
     load_examples: 'False'
-    colored_console_log: 'False'
     executor: '{{ .Values.executor }}'
+    # For Airflow 1.10, backward compatibility
+    colored_console_log: 'False'
     remote_logging: '{{- ternary "True" "False" .Values.elasticsearch.enabled }}'
   # Authentication backend used for the experimental API
   api:
     auth_backend: airflow.api.auth.backend.deny_all
   logging:
-    logging_level: DEBUG
-  webserver:
-    enable_proxy_fix: 'True'
-    expose_config: 'True'
-    rbac: 'True'
-
-  celery:
-    default_queue: celery
-
-  scheduler:
-    scheduler_heartbeat_sec: 5
+    remote_logging: '{{- ternary "True" "False" .Values.elasticsearch.enabled }}'
+    colored_console_log: 'False'
+  metrics:
     statsd_on: '{{ ternary "True" "False" .Values.statsd.enabled }}'
     statsd_port: 9125
     statsd_prefix: airflow
     statsd_host: '{{ printf "%s-statsd" .Release.Name }}'
-
-    # Restart Scheduler every 41460 seconds (11 hours 31 minutes)
-    # The odd time is chosen so it is not always restarting on the same "hour" boundary
+  operators:
+    default_queue: celery
+  webserver:
+    enable_proxy_fix: 'True'
+    rbac: 'True'
+  celery:
+    worker_concurrency: 16
+  scheduler:
+    scheduler_heartbeat_sec: 5
+    # statsd params included for Airflow 1.10 backward compatibility; moved to [metrics] in 2.0
+    statsd_on: '{{ ternary "True" "False" .Values.statsd.enabled }}'
+    statsd_port: 9125
+    statsd_prefix: airflow
+    statsd_host: '{{ printf "%s-statsd" .Release.Name }}'
+    # `run_duration` included for Airflow 1.10 backward compatibility; removed in 2.0.
     run_duration: 41460
   elasticsearch:
     json_format: 'True'
@@ -536,41 +913,25 @@ config:
     max_retries: 3
     timeout: 30
     retry_timeout: 'True'
-
+  kerberos:
+    keytab: '{{ .Values.kerberos.keytabPath }}'
+    reinit_frequency: '{{ .Values.kerberos.reinitFrequency }}'
+    principal: '{{ .Values.kerberos.principal }}'
+    ccache: '{{ .Values.kerberos.ccacheMountPath }}/{{ .Values.kerberos.ccacheFileName }}'
   kubernetes:
     namespace: '{{ .Release.Namespace }}'
     airflow_configmap: '{{ include "airflow_config" . }}'
     airflow_local_settings_configmap: '{{ include "airflow_config" . }}'
+    pod_template_file: '{{ include "airflow_pod_template_file" . }}/pod_template_file.yaml'
     worker_container_repository: '{{ .Values.images.airflow.repository | default .Values.defaultAirflowRepository }}'
     worker_container_tag: '{{ .Values.images.airflow.tag | default .Values.defaultAirflowTag }}'
-    worker_container_image_pull_policy: '{{ .Values.images.airflow.pullPolicy }}'
-    worker_service_account_name: '{{ .Release.Name }}-worker-serviceaccount'
-    image_pull_secrets: '{{ template "registry_secret" . }}'
-    dags_in_image: '{{ ternary "False" "True" (or .Values.dags.gitSync.enabled .Values.dags.persistence.enabled) }}'
     delete_worker_pods: 'True'
-    run_as_user: '{{ .Values.uid }}'
-    fs_group: '{{ .Values.gid }}'
-    git_dags_folder_mount_point: '{{- if or .Values.dags.gitSync.enabled .Values.dags.persistence.enabled }}{{ include "airflow_dags_mount_path" . }}{{end}}'
-    dags_volume_mount_point: '{{- if or .Values.dags.gitSync.enabled .Values.dags.persistence.enabled }}{{ include "airflow_dags_mount_path" . }}{{ end }}'
-    dags_volume_claim: '{{- if .Values.dags.persistence.enabled }}{{ include "airflow_dags_volume_claim" . }}{{ end }}'
-    dags_volume_subpath: '{{- if .Values.dags.persistence.enabled }}{{.Values.dags.gitSync.dest }}/{{ .Values.dags.gitSync.subPath }}{{ end }}'
-    git_repo: '{{- if and .Values.dags.gitSync.enabled (not .Values.dags.persistence.enabled) }}{{ .Values.dags.gitSync.repo }}{{ end }}'
-    git_branch: '{{ .Values.dags.gitSync.branch }}'
-    git_sync_rev: '{{ .Values.dags.gitSync.rev }}'
-    git_sync_depth: '{{ .Values.dags.gitSync.depth }}'
-    git_sync_root: '{{ .Values.dags.gitSync.root }}'
-    git_sync_dest: '{{ .Values.dags.gitSync.dest }}'
-    git_sync_container_repository: '{{ .Values.dags.gitSync.containerRepository }}'
-    git_sync_container_tag: '{{ .Values.dags.gitSync.containerTag }}'
-    git_sync_init_container_name: '{{ .Values.dags.gitSync.containerName }}'
-    git_sync_run_as_user: '{{ .Values.uid }}'
-    git_ssh_known_hosts_configmap_name: '{{- if .Values.dags.gitSync.knownHosts }}{{ include "airflow_config" . }}{{ end }}'
-    git_ssh_key_secret_name: '{{- if .Values.dags.gitSync.sshKeySecret }}{{ .Values.dags.gitSync.sshKeySecret }}{{ end }}'
-    git_sync_credentials_secret: '{{- if .Values.dags.gitSync.credentialsSecret }}{{ .Values.dags.gitSync.credentialsSecret }}{{ end }}'
-  kubernetes_secrets:
-    AIRFLOW__CORE__SQL_ALCHEMY_CONN: '{{ printf "%s=connection" (include "airflow_metadata_secret" .) }}'
-    AIRFLOW__CORE__FERNET_KEY: '{{ printf "%s=fernet-key" (include "fernet_key_secret" .) }}'
+    multi_namespace_mode: '{{ if .Values.multiNamespaceMode }}True{{ else }}False{{ end }}'
 # yamllint enable rule:line-length
+
+multiNamespaceMode: false
+
+podTemplate: ~
 
 # Git sync
 dags:
@@ -582,11 +943,18 @@ dags:
     # If using a custom storageClass, pass name here
     storageClassName:
     # access mode of the persistent volume
-    accessMode: ReadWriteMany
+    accessMode: ReadWriteOnce
     ## the name of an existing PVC to use
-    existingClaim: ~
+    existingClaim:
   gitSync:
     enabled: false
+
+    # Change it to true when DAG Serialization is turned on. This will exclude git sync containers
+    # from Webserver as DAGs are fetched from the DB. DAG Serialization was introduced in
+    # 1.10.7 and is optional for <2.0.0.
+    # https://airflow.apache.org/docs/apache-airflow/1.10.15/dag-serialization.html
+    excludeWebserver: false
+
     # git repo clone url
     # ssh examples ssh://git@github.com/apache/airflow.git
     # git@github.com:apache/airflow.git
@@ -613,7 +981,8 @@ dags:
     #     GIT_SYNC_USERNAME: <base64_encoded_git_username>
     #     GIT_SYNC_PASSWORD: <base64_encoded_git_password>
     # and specify the name of the secret below
-    #credentialsSecret: git-credentials
+    #
+    # credentialsSecret: git-credentials
     #
     #
     # If you are using an ssh clone url, you can load
@@ -627,15 +996,27 @@ dags:
     #     # key needs to be gitSshKey
     #     gitSshKey: <base64_encoded_data>
     # and specify the name of the secret below
-    #sshKeySecret: airflow-ssh-secret
+    # sshKeySecret: airflow-ssh-secret
+    #
     # If you are using an ssh private key, you can additionally
     # specify the content of your known_hosts file, example:
-    #knownHosts: |
+    #
+    # knownHosts: |
     #    <host1>,<ip1> <key1>
     #    <host2>,<ip2> <key2>
     # interval between git sync attempts in seconds
     wait: 60
-    # git sync image details
-    containerRepository: k8s.gcr.io/git-sync
-    containerTag: v3.1.6
     containerName: git-sync
+    uid: 65533
+    extraVolumeMounts: []
+
+logs:
+  persistence:
+    # Enable persistent volume for storing logs
+    enabled: false
+    # Volume size for logs
+    size: 100Gi
+    # If using a custom storageClass, pass name here
+    storageClassName:
+    ## the name of an existing PVC to use
+    existingClaim:

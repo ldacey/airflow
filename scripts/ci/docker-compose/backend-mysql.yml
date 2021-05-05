@@ -23,8 +23,11 @@ services:
       - AIRFLOW__CORE__SQL_ALCHEMY_CONN=mysql://root@mysql/airflow?charset=utf8mb4
       - AIRFLOW__CORE__SQL_ENGINE_COLLATION_FOR_IDS=utf8mb3_general_ci
       - AIRFLOW__CELERY__RESULT_BACKEND=db+mysql://root@mysql/airflow?charset=utf8mb4
+      - AIRFLOW__CORE__EXECUTOR=LocalExecutor
     depends_on:
-      - mysql
+      mysql:
+        condition: service_healthy
+
   mysql:
     image: mysql:${MYSQL_VERSION}
     environment:
@@ -34,5 +37,12 @@ services:
     volumes:
       - ../mysql/conf.d:/etc/mysql/conf.d:ro
       - /dev/urandom:/dev/random   # Required to get non-blocking entropy source
-    ports:
-      - "${MYSQL_HOST_PORT}:3306"
+      - mysql-db-volume:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysql", "-h", "localhost", "-P", "3306", "-u", "root", "-e", "SELECT 1"]
+      interval: 10s
+      timeout: 10s
+      retries: 5
+    restart: always
+    command: ['mysqld', '--character-set-server=utf8mb4',
+              '--collation-server=utf8mb4_unicode_ci']

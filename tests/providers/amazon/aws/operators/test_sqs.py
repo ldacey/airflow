@@ -31,12 +31,8 @@ DEFAULT_DATE = timezone.datetime(2019, 1, 1)
 
 
 class TestSQSPublishOperator(unittest.TestCase):
-
     def setUp(self):
-        args = {
-            'owner': 'airflow',
-            'start_date': DEFAULT_DATE
-        }
+        args = {'owner': 'airflow', 'start_date': DEFAULT_DATE}
 
         self.dag = DAG('test_dag_id', default_args=args)
         self.operator = SQSPublishOperator(
@@ -44,7 +40,7 @@ class TestSQSPublishOperator(unittest.TestCase):
             dag=self.dag,
             sqs_queue='test',
             message_content='hello',
-            aws_conn_id='aws_default'
+            aws_conn_id='aws_default',
         )
 
         self.mock_context = MagicMock()
@@ -55,15 +51,15 @@ class TestSQSPublishOperator(unittest.TestCase):
         self.sqs_hook.create_queue('test')
 
         result = self.operator.execute(self.mock_context)
-        self.assertTrue('MD5OfMessageBody' in result)
-        self.assertTrue('MessageId' in result)
+        assert 'MD5OfMessageBody' in result
+        assert 'MessageId' in result
 
         message = self.sqs_hook.get_conn().receive_message(QueueUrl='test')
 
-        self.assertEqual(len(message['Messages']), 1)
-        self.assertEqual(message['Messages'][0]['MessageId'], result['MessageId'])
-        self.assertEqual(message['Messages'][0]['Body'], 'hello')
+        assert len(message['Messages']) == 1
+        assert message['Messages'][0]['MessageId'] == result['MessageId']
+        assert message['Messages'][0]['Body'] == 'hello'
 
         context_calls = []
 
-        self.assertTrue(self.mock_context['ti'].method_calls == context_calls, "context call  should be same")
+        assert self.mock_context['ti'].method_calls == context_calls, "context call  should be same"

@@ -16,7 +16,7 @@
 # under the License.
 
 import os
-from typing import Optional
+from typing import Dict, Optional
 
 from airflow.models import BaseOperator
 from airflow.providers.amazon.aws.hooks.s3 import S3Hook
@@ -42,23 +42,29 @@ class S3ToMySqlOperator(BaseOperator):
     :type mysql_extra_options: Optional[str]
     :param aws_conn_id: The S3 connection that contains the credentials to the S3 Bucket.
     :type aws_conn_id: str
-    :param mysql_conn_id: The MySQL connection that contains the credentials to the MySQL data base.
+    :param mysql_conn_id: Reference to :ref:`mysql connection id <howto/connection:mysql>`.
     :type mysql_conn_id: str
     """
 
-    template_fields = ('s3_source_key', 'mysql_table',)
+    template_fields = (
+        's3_source_key',
+        'mysql_table',
+    )
     template_ext = ()
     ui_color = '#f4a460'
 
     @apply_defaults
-    def __init__(self, *,
-                 s3_source_key: str,
-                 mysql_table: str,
-                 mysql_duplicate_key_handling: str = 'IGNORE',
-                 mysql_extra_options: Optional[str] = None,
-                 aws_conn_id: str = 'aws_default',
-                 mysql_conn_id: str = 'mysql_default',
-                 **kwargs) -> None:
+    def __init__(
+        self,
+        *,
+        s3_source_key: str,
+        mysql_table: str,
+        mysql_duplicate_key_handling: str = 'IGNORE',
+        mysql_extra_options: Optional[str] = None,
+        aws_conn_id: str = 'aws_default',
+        mysql_conn_id: str = 'mysql_default',
+        **kwargs,
+    ) -> None:
         super().__init__(**kwargs)
         self.s3_source_key = s3_source_key
         self.mysql_table = mysql_table
@@ -67,7 +73,7 @@ class S3ToMySqlOperator(BaseOperator):
         self.aws_conn_id = aws_conn_id
         self.mysql_conn_id = mysql_conn_id
 
-    def execute(self, context: dict) -> None:
+    def execute(self, context: Dict) -> None:
         """
         Executes the transfer operation from S3 to MySQL.
 
@@ -85,7 +91,7 @@ class S3ToMySqlOperator(BaseOperator):
                 table=self.mysql_table,
                 tmp_file=file,
                 duplicate_key_handling=self.mysql_duplicate_key_handling,
-                extra_options=self.mysql_extra_options
+                extra_options=self.mysql_extra_options,
             )
         finally:
             # Remove file downloaded from s3 to be idempotent.

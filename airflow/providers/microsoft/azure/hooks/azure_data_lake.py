@@ -24,9 +24,12 @@ Airflow connection of type `azure_data_lake` exists. Authorization can be done b
 login (=Client ID), password (=Client Secret) and extra fields tenant (Tenant) and account_name (Account Name)
 (see connection `azure_data_lake_default` for an example).
 """
+from typing import Any, Dict, Optional
+
 from azure.datalake.store import core, lib, multithread
 
-from airflow.hooks.base_hook import BaseHook
+from airflow.exceptions import AirflowException
+from airflow.hooks.base import BaseHook
 
 
 class AzureDataLakeHook(BaseHook):
@@ -37,31 +40,70 @@ class AzureDataLakeHook(BaseHook):
     Tenant and account name should be extra field as
     {"tenant": "<TENANT>", "account_name": "ACCOUNT_NAME"}.
 
-    :param azure_data_lake_conn_id: Reference to the Azure Data Lake connection.
+    :param azure_data_lake_conn_id: Reference to the :ref:`Azure Data Lake connection<howto/connection:adl>`.
     :type azure_data_lake_conn_id: str
     """
 
-    def __init__(self, azure_data_lake_conn_id='azure_data_lake_default'):
+    conn_name_attr = 'azure_data_lake_conn_id'
+    default_conn_name = 'azure_data_lake_default'
+    conn_type = 'azure_data_lake'
+    hook_name = 'Azure Data Lake'
+
+    @staticmethod
+    def get_connection_form_widgets() -> Dict[str, Any]:
+        """Returns connection widgets to add to connection form"""
+        from flask_appbuilder.fieldwidgets import BS3TextFieldWidget
+        from flask_babel import lazy_gettext
+        from wtforms import StringField
+
+        return {
+            "extra__azure_data_lake__tenant": StringField(
+                lazy_gettext('Azure Tenant ID'), widget=BS3TextFieldWidget()
+            ),
+            "extra__azure_data_lake__account_name": StringField(
+                lazy_gettext('Azure DataLake Store Name'), widget=BS3TextFieldWidget()
+            ),
+        }
+
+    @staticmethod
+    def get_ui_field_behaviour() -> Dict:
+        """Returns custom field behaviour"""
+        return {
+            "hidden_fields": ['schema', 'port', 'host', 'extra'],
+            "relabeling": {
+                'login': 'Azure Client ID',
+                'password': 'Azure Client Secret',
+            },
+            "placeholders": {
+                'login': 'client id',
+                'password': 'secret',
+                'extra__azure_data_lake__tenant': 'tenant id',
+                'extra__azure_data_lake__account_name': 'datalake store',
+            },
+        }
+
+    def __init__(self, azure_data_lake_conn_id: str = default_conn_name) -> None:
         super().__init__()
         self.conn_id = azure_data_lake_conn_id
-        self._conn = None
-        self.account_name = None
+        self._conn: Optional[core.AzureDLFileSystem] = None
+        self.account_name: Optional[str] = None
 
-    def get_conn(self):
+    def get_conn(self) -> core.AzureDLFileSystem:
         """Return a AzureDLFileSystem object."""
         if not self._conn:
             conn = self.get_connection(self.conn_id)
             service_options = conn.extra_dejson
-            self.account_name = service_options.get('account_name')
+            self.account_name = service_options.get('account_name') or service_options.get(
+                'extra__azure_data_lake__account_name'
+            )
+            tenant = service_options.get('tenant') or service_options.get('extra__azure_data_lake__tenant')
 
-            adl_creds = lib.auth(tenant_id=service_options.get('tenant'),
-                                 client_secret=conn.password,
-                                 client_id=conn.login)
+            adl_creds = lib.auth(tenant_id=tenant, client_secret=conn.password, client_id=conn.login)
             self._conn = core.AzureDLFileSystem(adl_creds, store_name=self.account_name)
             self._conn.connect()
         return self._conn
 
-    def check_for_file(self, file_path):
+    def check_for_file(self, file_path: str) -> bool:
         """
         Check if a file exists on Azure Data Lake.
 
@@ -76,8 +118,16 @@ class AzureDataLakeHook(BaseHook):
         except FileNotFoundError:
             return False
 
-    def upload_file(self, local_path, remote_path, nthreads=64, overwrite=True,
-                    buffersize=4194304, blocksize=4194304):
+    def upload_file(
+        self,
+        local_path: str,
+        remote_path: str,
+        nthreads: int = 64,
+        overwrite: bool = True,
+        buffersize: int = 4194304,
+        blocksize: int = 4194304,
+        **kwargs,
+    ) -> None:
         """
         Upload a file to Azure Data Lake.
 
@@ -104,16 +154,27 @@ class AzureDataLakeHook(BaseHook):
             block for each API call. This block cannot be bigger than a chunk.
         :type blocksize: int
         """
-        multithread.ADLUploader(self.get_conn(),
-                                lpath=local_path,
-                                rpath=remote_path,
-                                nthreads=nthreads,
-                                overwrite=overwrite,
-                                buffersize=buffersize,
-                                blocksize=blocksize)
+        multithread.ADLUploader(
+            self.get_conn(),
+            lpath=local_path,
+            rpath=remote_path,
+            nthreads=nthreads,
+            overwrite=overwrite,
+            buffersize=buffersize,
+            blocksize=blocksize,
+            **kwargs,
+        )
 
-    def download_file(self, local_path, remote_path, nthreads=64, overwrite=True,
-                      buffersize=4194304, blocksize=4194304):
+    def download_file(
+        self,
+        local_path: str,
+        remote_path: str,
+        nthreads: int = 64,
+        overwrite: bool = True,
+        buffersize: int = 4194304,
+        blocksize: int = 4194304,
+        **kwargs,
+    ) -> None:
         """
         Download a file from Azure Blob Storage.
 
@@ -141,15 +202,18 @@ class AzureDataLakeHook(BaseHook):
             block for each API call. This block cannot be bigger than a chunk.
         :type blocksize: int
         """
-        multithread.ADLDownloader(self.get_conn(),
-                                  lpath=local_path,
-                                  rpath=remote_path,
-                                  nthreads=nthreads,
-                                  overwrite=overwrite,
-                                  buffersize=buffersize,
-                                  blocksize=blocksize)
+        multithread.ADLDownloader(
+            self.get_conn(),
+            lpath=local_path,
+            rpath=remote_path,
+            nthreads=nthreads,
+            overwrite=overwrite,
+            buffersize=buffersize,
+            blocksize=blocksize,
+            **kwargs,
+        )
 
-    def list(self, path):
+    def list(self, path: str) -> list:
         """
         List files in Azure Data Lake Storage
 
@@ -160,3 +224,22 @@ class AzureDataLakeHook(BaseHook):
             return self.get_conn().glob(path)
         else:
             return self.get_conn().walk(path)
+
+    def remove(self, path: str, recursive: bool = False, ignore_not_found: bool = True) -> None:
+        """
+        Remove files in Azure Data Lake Storage
+
+        :param path: A directory or file to remove in ADLS
+        :type path: str
+        :param recursive: Whether to loop into directories in the location and remove the files
+        :type recursive: bool
+        :param ignore_not_found: Whether to raise error if file to delete is not found
+        :type ignore_not_found: bool
+        """
+        try:
+            self.get_conn().remove(path=path, recursive=recursive)
+        except FileNotFoundError:
+            if ignore_not_found:
+                self.log.info("File %s not found", path)
+            else:
+                raise AirflowException(f"File {path} not found")

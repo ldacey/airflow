@@ -31,6 +31,7 @@ metastore_db
 .*sql
 .*svg
 .*csv
+.*md5
 CHANGELOG.txt
 .*zip
 .*lock
@@ -40,6 +41,7 @@ logs
 venv
 files
 airflow.iml
+.gitmodules
 
 # Generated doc files
 .*html
@@ -63,8 +65,6 @@ underscore.js
 jquery.dataTables.min.js
 jqClock.min.js
 dagre-d3.min.js
-bootstrap-toggle.min.js
-bootstrap-toggle.min.css
 d3.v3.min.js
 ace.js
 node_modules/*
@@ -72,14 +72,16 @@ node_modules/*
 coverage/*
 git_version
 flake8_diff.sh
-coverage.xml
+coverage*.xml
 _sources/*
 
 rat-results.txt
 apache-airflow-.*\+source.tar.gz.*
 apache-airflow-.*\+bin.tar.gz.*
 PULL_REQUEST_TEMPLATE.md
-PROVIDERS_CHANGES*.md
+PROVIDER_CHANGES*.md
+manifests/*
+redirects.txt
 
 # Temporary list of files to make compatible with Pylint
 pylint_todo.txt

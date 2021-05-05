@@ -58,32 +58,38 @@ DEFAULT_LOGGING_CONFIG: Dict[str, Any] = {
     'version': 1,
     'disable_existing_loggers': False,
     'formatters': {
-        'airflow': {
-            'format': LOG_FORMAT
-        },
+        'airflow': {'format': LOG_FORMAT},
         'airflow_coloured': {
             'format': COLORED_LOG_FORMAT if COLORED_LOG else LOG_FORMAT,
-            'class': COLORED_FORMATTER_CLASS if COLORED_LOG else 'logging.Formatter'
+            'class': COLORED_FORMATTER_CLASS if COLORED_LOG else 'logging.Formatter',
+        },
+    },
+    'filters': {
+        'mask_secrets': {
+            '()': 'airflow.utils.log.secrets_masker.SecretsMasker',
         },
     },
     'handlers': {
         'console': {
             'class': 'airflow.utils.log.logging_mixin.RedirectStdHandler',
             'formatter': 'airflow_coloured',
-            'stream': 'sys.stdout'
+            'stream': 'sys.stdout',
+            'filters': ['mask_secrets'],
         },
         'task': {
             'class': 'airflow.utils.log.file_task_handler.FileTaskHandler',
             'formatter': 'airflow',
             'base_log_folder': os.path.expanduser(BASE_LOG_FOLDER),
             'filename_template': FILENAME_TEMPLATE,
+            'filters': ['mask_secrets'],
         },
         'processor': {
             'class': 'airflow.utils.log.file_processor_handler.FileProcessorHandler',
             'formatter': 'airflow',
             'base_log_folder': os.path.expanduser(PROCESSOR_LOG_FOLDER),
             'filename_template': PROCESSOR_FILENAME_TEMPLATE,
-        }
+            'filters': ['mask_secrets'],
+        },
     },
     'loggers': {
         'airflow.processor': {
@@ -95,24 +101,29 @@ DEFAULT_LOGGING_CONFIG: Dict[str, Any] = {
             'handlers': ['task'],
             'level': LOG_LEVEL,
             'propagate': False,
+            'filters': ['mask_secrets'],
         },
         'flask_appbuilder': {
             'handler': ['console'],
             'level': FAB_LOG_LEVEL,
             'propagate': True,
-        }
+        },
     },
     'root': {
         'handlers': ['console'],
         'level': LOG_LEVEL,
-    }
+        'filters': ['mask_secrets'],
+    },
 }
 
 EXTRA_LOGGER_NAMES: str = conf.get('logging', 'EXTRA_LOGGER_NAMES', fallback=None)
 if EXTRA_LOGGER_NAMES:
     new_loggers = {
         logger_name.strip(): {
-            'handler': ['console'], 'level': LOG_LEVEL, 'propagate': True, }
+            'handler': ['console'],
+            'level': LOG_LEVEL,
+            'propagate': True,
+        }
         for logger_name in EXTRA_LOGGER_NAMES.split(",")
     }
     DEFAULT_LOGGING_CONFIG['loggers'].update(new_loggers)
@@ -125,7 +136,7 @@ DEFAULT_DAG_PARSING_LOGGING_CONFIG: Dict[str, Dict[str, Dict[str, Any]]] = {
             'filename': DAG_PROCESSOR_MANAGER_LOG_LOCATION,
             'mode': 'a',
             'maxBytes': 104857600,  # 100MB
-            'backupCount': 5
+            'backupCount': 5,
         }
     },
     'loggers': {
@@ -134,22 +145,21 @@ DEFAULT_DAG_PARSING_LOGGING_CONFIG: Dict[str, Dict[str, Dict[str, Any]]] = {
             'level': LOG_LEVEL,
             'propagate': False,
         }
-    }
+    },
 }
 
 # Only update the handlers and loggers when CONFIG_PROCESSOR_MANAGER_LOGGER is set.
 # This is to avoid exceptions when initializing RotatingFileHandler multiple times
 # in multiple processes.
 if os.environ.get('CONFIG_PROCESSOR_MANAGER_LOGGER') == 'True':
-    DEFAULT_LOGGING_CONFIG['handlers'] \
-        .update(DEFAULT_DAG_PARSING_LOGGING_CONFIG['handlers'])
-    DEFAULT_LOGGING_CONFIG['loggers'] \
-        .update(DEFAULT_DAG_PARSING_LOGGING_CONFIG['loggers'])
+    DEFAULT_LOGGING_CONFIG['handlers'].update(DEFAULT_DAG_PARSING_LOGGING_CONFIG['handlers'])
+    DEFAULT_LOGGING_CONFIG['loggers'].update(DEFAULT_DAG_PARSING_LOGGING_CONFIG['loggers'])
 
     # Manually create log directory for processor_manager handler as RotatingFileHandler
     # will only create file but not the directory.
-    processor_manager_handler_config: Dict[str, Any] = \
-        DEFAULT_DAG_PARSING_LOGGING_CONFIG['handlers']['processor_manager']
+    processor_manager_handler_config: Dict[str, Any] = DEFAULT_DAG_PARSING_LOGGING_CONFIG['handlers'][
+        'processor_manager'
+    ]
     directory: str = os.path.dirname(processor_manager_handler_config['filename'])
     Path(directory).mkdir(parents=True, exist_ok=True, mode=0o755)
 
@@ -186,7 +196,7 @@ if REMOTE_LOGGING:
     elif REMOTE_BASE_LOG_FOLDER.startswith('cloudwatch://'):
         CLOUDWATCH_REMOTE_HANDLERS: Dict[str, Dict[str, str]] = {
             'task': {
-                'class': 'airflow.utils.log.cloudwatch_task_handler.CloudwatchTaskHandler',
+                'class': 'airflow.providers.amazon.aws.log.cloudwatch_task_handler.CloudwatchTaskHandler',
                 'formatter': 'airflow',
                 'base_log_folder': str(os.path.expanduser(BASE_LOG_FOLDER)),
                 'log_group_arn': urlparse(REMOTE_BASE_LOG_FOLDER).netloc,
@@ -196,13 +206,15 @@ if REMOTE_LOGGING:
 
         DEFAULT_LOGGING_CONFIG['handlers'].update(CLOUDWATCH_REMOTE_HANDLERS)
     elif REMOTE_BASE_LOG_FOLDER.startswith('gs://'):
+        key_path = conf.get('logging', 'GOOGLE_KEY_PATH', fallback=None)
         GCS_REMOTE_HANDLERS: Dict[str, Dict[str, str]] = {
             'task': {
-                'class': 'airflow.utils.log.gcs_task_handler.GCSTaskHandler',
+                'class': 'airflow.providers.google.cloud.log.gcs_task_handler.GCSTaskHandler',
                 'formatter': 'airflow',
                 'base_log_folder': str(os.path.expanduser(BASE_LOG_FOLDER)),
                 'gcs_log_folder': REMOTE_BASE_LOG_FOLDER,
                 'filename_template': FILENAME_TEMPLATE,
+                'gcp_key_path': key_path,
             },
         }
 
@@ -210,7 +222,7 @@ if REMOTE_LOGGING:
     elif REMOTE_BASE_LOG_FOLDER.startswith('wasb'):
         WASB_REMOTE_HANDLERS: Dict[str, Dict[str, Union[str, bool]]] = {
             'task': {
-                'class': 'airflow.utils.log.wasb_task_handler.WasbTaskHandler',
+                'class': 'airflow.providers.microsoft.azure.log.wasb_task_handler.WasbTaskHandler',
                 'formatter': 'airflow',
                 'base_log_folder': str(os.path.expanduser(BASE_LOG_FOLDER)),
                 'wasb_log_folder': REMOTE_BASE_LOG_FOLDER,
@@ -222,7 +234,7 @@ if REMOTE_LOGGING:
 
         DEFAULT_LOGGING_CONFIG['handlers'].update(WASB_REMOTE_HANDLERS)
     elif REMOTE_BASE_LOG_FOLDER.startswith('stackdriver://'):
-        key_path = conf.get('logging', 'STACKDRIVER_KEY_PATH', fallback=None)
+        key_path = conf.get('logging', 'GOOGLE_KEY_PATH', fallback=None)
         # stackdriver:///airflow-tasks => airflow-tasks
         log_name = urlparse(REMOTE_BASE_LOG_FOLDER).path[1:]
         STACKDRIVER_REMOTE_HANDLERS = {
@@ -230,7 +242,7 @@ if REMOTE_LOGGING:
                 'class': 'airflow.providers.google.cloud.log.stackdriver_task_handler.StackdriverTaskHandler',
                 'formatter': 'airflow',
                 'name': log_name,
-                'gcp_key_path': key_path
+                'gcp_key_path': key_path,
             }
         }
 
@@ -255,7 +267,7 @@ if REMOTE_LOGGING:
                 'frontend': ELASTICSEARCH_FRONTEND,
                 'write_stdout': ELASTICSEARCH_WRITE_STDOUT,
                 'json_format': ELASTICSEARCH_JSON_FORMAT,
-                'json_fields': ELASTICSEARCH_JSON_FIELDS
+                'json_fields': ELASTICSEARCH_JSON_FIELDS,
             },
         }
 
@@ -264,4 +276,5 @@ if REMOTE_LOGGING:
         raise AirflowException(
             "Incorrect remote log configuration. Please check the configuration of option 'host' in "
             "section 'elasticsearch' if you are using Elasticsearch. In the other case, "
-            "'remote_base_log_folder' option in 'core' section.")
+            "'remote_base_log_folder' option in the 'logging' section."
+        )

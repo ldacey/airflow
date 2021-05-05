@@ -1,4 +1,4 @@
- .. Licensed to the Apache Software Foundation (ASF) under one
+.. Licensed to the Apache Software Foundation (ASF) under one
     or more contributor license agreements.  See the NOTICE file
     distributed with this work for additional information
     regarding copyright ownership.  The ASF licenses this file
@@ -22,6 +22,16 @@ Contributions
 
 Contributions are welcome and are greatly appreciated! Every little bit helps,
 and credit will always be given.
+
+This document aims to explain the subject of contributions if you have not contributed to
+any Open Source project, but it will also help people who have contributed to other projects learn about the
+rules of that community.
+
+New Contributor
+---------------
+If you are a new contributor, please follow the `Contributors Quick Start <https://github.com/apache/airflow/blob/master
+/CONTRIBUTORS_QUICK_START.rst>`__ guide to get a gentle step-by-step introduction to setting up the development
+environment and making your first contribution.
 
 Get Mentoring Support
 ---------------------
@@ -52,6 +62,14 @@ Fix Bugs
 
 Look through the GitHub issues for bugs. Anything is open to whoever wants to
 implement it.
+
+Issue reporting and resolution process
+--------------------------------------
+
+The Apache Airflow project uses a set of labels for tracking and triaging issues, as
+well as a set of priorities and milestones to track how and when the enhancements and bug
+fixes make it into an Airflow release. This is documented as part of
+the `Issue reporting and resolution process <ISSUE_TRIAGE_PROCESS.rst>`_,
 
 Implement Features
 ------------------
@@ -84,6 +102,55 @@ If you are proposing a new feature:
 -   Remember that this is a volunteer-driven project, and that contributions are
     welcome :)
 
+
+Roles
+=============
+
+There are several roles within the Airflow Open-Source community.
+
+For detailed information for each role, see: `Committers and PMC's <./COMMITTERS.rst>`__.
+
+PMC Member
+-----------
+
+The PMC (Project Management Committee) is a group of maintainers that drives changes in the way that
+Airflow is managed as a project.
+
+Considering Apache, the role of the PMC is primarily to ensure that Airflow conforms to Apache's processes
+and guidelines.
+
+Committers/Maintainers
+----------------------
+
+Committers are community members that have write access to the project’s repositories, i.e., they can modify the code,
+documentation, and website by themselves and also accept other contributions.
+
+The official list of committers can be found `here <https://airflow.apache.org/docs/apache-airflow/stable/project.html#committers>`__.
+
+Additionally, committers are listed in a few other places (some of these may only be visible to existing committers):
+
+* https://whimsy.apache.org/roster/ppmc/airflow
+* https://github.com/orgs/apache/teams/airflow-committers/members
+
+Committers are responsible for:
+
+* Championing one or more items on the `Roadmap <https://cwiki.apache.org/confluence/display/AIRFLOW/Airflow+Home>`__
+* Reviewing & Merging Pull-Requests
+* Scanning and responding to GitHub issues
+* Responding to questions on the dev mailing list (dev@airflow.apache.org)
+
+Contributors
+------------
+
+A contributor is anyone who wants to contribute code, documentation, tests, ideas, or anything to the
+Apache Airflow project.
+
+Contributors are responsible for:
+
+* Fixing bugs
+* Adding features
+* Championing one or more items on the `Roadmap <https://cwiki.apache.org/confluence/display/AIRFLOW/Airflow+Home>`__.
+
 Contribution Workflow
 =====================
 
@@ -108,10 +175,10 @@ In general, your contribution includes the following stages:
 2. Create a `local virtualenv <LOCAL_VIRTUALENV.rst>`_,
    initialize the `Breeze environment <BREEZE.rst>`__, and
    install `pre-commit framework <STATIC_CODE_CHECKS.rst#pre-commit-hooks>`__.
-   If you want to add more changes in the future, set up your fork and enable Github Actions.
+   If you want to add more changes in the future, set up your fork and enable GitHub Actions.
 
 3. Join `devlist <https://lists.apache.org/list.html?dev@airflow.apache.org>`__
-   and set up a `Slack account <https://apache-airflow-slack.herokuapp.com>`__.
+   and set up a `Slack account <https://s.apache.org/airflow-slack>`__.
 
 4. Make the change and create a `Pull Request from your fork <https://help.github.com/en/github/collaborating-with-issues-and-pull-requests/creating-a-pull-request-from-a-fork>`__.
 
@@ -129,9 +196,14 @@ From the `apache/airflow <https://github.com/apache/airflow>`_ repo,
 
 Step 2: Configure Your Environment
 ----------------------------------
-Configure the Docker-based Breeze development environment and run tests.
 
-You can use the default Breeze configuration as follows:
+You can use either a local virtual env or a Docker-based env. The differences
+between the two are explained `here <https://github.com/apache/airflow/blob/master/CONTRIBUTING.rst#development-environments>`_.
+
+The local env's instructions can be found in full in the  `LOCAL_VIRTUALENV.rst <https://github.com/apache/airflow/blob/master/LOCAL_VIRTUALENV.rst>`_ file.
+The Docker env is here to maintain a consistent and common development environment so that you can replicate CI failures locally and work on solving them locally rather by pushing to CI.
+
+You can configure the Docker-based Breeze development environment as follows:
 
 1. Install the latest versions of the Docker Community Edition
    and Docker Compose and add them to the PATH.
@@ -154,7 +226,7 @@ You can use the default Breeze configuration as follows:
 
 .. code-block:: bash
 
-   ./breeze --initialize-local-virtualenv
+   ./breeze initialize-local-virtualenv --python 3.6
 
 6. Open your IDE (for example, PyCharm) and select the virtualenv you created
    as the project's default virtualenv in your IDE.
@@ -186,9 +258,9 @@ Step 4: Prepare PR
 
    For example, to address this example issue, do the following:
 
-   * Read about `email configuration in Airflow <https://airflow.readthedocs.io/en/latest/howto/email-config.html>`__.
+   * Read about `email configuration in Airflow </docs/apache-airflow/howto/email-config.rst>`__.
 
-   * Find the class you should modify. For the example github issue,
+   * Find the class you should modify. For the example GitHub issue,
      this is `email.py <https://github.com/apache/airflow/blob/master/airflow/utils/email.py>`__.
 
    * Find the test class where you should add tests. For the example ticket,
@@ -215,7 +287,7 @@ Step 4: Prepare PR
 
    * Run the tests in `Breeze <TESTING.rst#running-unit-tests-inside-breeze>`__.
 
-   * Run and fix all the `static checks <STATIC_CODE_CHECKS>`__. If you have
+   * Run and fix all the `static checks <STATIC_CODE_CHECKS.rst>`__. If you have
      `pre-commits installed <STATIC_CODE_CHECKS.rst#pre-commit-hooks>`__,
      this step is automatically run while you are committing your code. If not, you can do it manually
      via ``git add`` and then ``pre-commit run``.
@@ -227,10 +299,38 @@ Step 4: Prepare PR
 
 3. Re-run static code checks again.
 
-4. Create a pull request with the following title for the sample ticket:
-   ``[AIRFLOW-5934] Added extra CC: field to the Airflow emails.``
+4. Make sure your commit has a good title and description of the context of your change, enough
+   for the committer reviewing it to understand why you are proposing a change. Make sure to follow other
+   PR guidelines described in `pull request guidelines <#pull-request-guidelines>`_.
+   Create Pull Request! Make yourself ready for the discussion!
 
-Make sure to follow other PR guidelines described in `this document <#pull-request-guidelines>`_.
+5. Depending on "scope" of your changes, your Pull Request might go through one of few paths after approval.
+   We run some non-standard workflow with high degree of automation that allows us to optimize the usage
+   of queue slots in GitHub Actions. Our automated workflows determine the "scope" of changes in your PR
+   and send it through the right path:
+
+   * In case of a "no-code" change, approval will generate a comment that the PR can be merged and no
+     tests are needed. This is usually when the change modifies some non-documentation related RST
+     files (such as this file). No python tests are run and no CI images are built for such PR. Usually
+     it can be approved and merged few minutes after it is submitted (unless there is a big queue of jobs).
+
+   * In case of change involving python code changes or documentation changes, a subset of full test matrix
+     will be executed. This subset of tests perform relevant tests for single combination of python, backend
+     version and only builds one CI image and one PROD image. Here the scope of tests depends on the
+     scope of your changes:
+
+     * when your change does not change "core" of Airflow (Providers, CLI, WWW, Helm Chart) you will get the
+       comment that PR is likely ok to be merged without running "full matrix" of tests. However decision
+       for that is left to committer who approves your change. The committer might set a "full tests needed"
+       label for your PR and ask you to rebase your request or re-run all jobs. PRs with "full tests needed"
+       run full matrix of tests.
+
+     * when your change changes the "core" of Airflow you will get the comment that PR needs full tests and
+       the "full tests needed" label is set for your PR. Additional check is set that prevents from
+       accidental merging of the request until full matrix of tests succeeds for the PR.
+
+   More details about the PR workflow be found in `PULL_REQUEST_WORKFLOW.rst <PULL_REQUEST_WORKFLOW.rst>`_.
+
 
 Step 5: Pass PR Review
 ----------------------
@@ -242,6 +342,11 @@ Step 5: Pass PR Review
 Note that committers will use **Squash and Merge** instead of **Rebase and Merge**
 when merging PRs and your commit will be squashed to single commit.
 
+You need to have review of at least one committer (if you are committer yourself, it has to be
+another committer). Ideally you should have 2 or more committers reviewing the code that touches
+the core of Airflow.
+
+
 Pull Request Guidelines
 =======================
 
@@ -251,7 +356,7 @@ these guidelines:
 -   Include tests, either as doctests, unit tests, or both, to your pull
     request.
 
-    The airflow repo uses `Github Actions <https://help.github.com/en/actions>`__ to
+    The airflow repo uses `GitHub Actions <https://help.github.com/en/actions>`__ to
     run the tests and `codecov <https://codecov.io/gh/apache/airflow>`__ to track
     coverage. You can set up both for free on your fork. It will help you make sure you do not
     break the build with your PR and that you help increase coverage.
@@ -276,7 +381,7 @@ these guidelines:
     of the same PR. Doc string is often sufficient. Make sure to follow the
     Sphinx compatible standards.
 
--   Make sure your code fulfils all the
+-   Make sure your code fulfills all the
     `static code checks <STATIC_CODE_CHECKS.rst#pre-commit-hooks>`__ we have in our code. The easiest way
     to make sure of that is to use `pre-commit hooks <STATIC_CODE_CHECKS.rst#pre-commit-hooks>`__
 
@@ -291,16 +396,39 @@ Airflow Git Branches
 ====================
 
 All new development in Airflow happens in the ``master`` branch. All PRs should target that branch.
-We also have a ``v1-10-test`` branch that is used to test ``1.10.x`` series of Airflow and where committers
+
+
+We also have a ``v2-0-test`` branch that is used to test ``2.0.x`` series of Airflow and where committers
 cherry-pick selected commits from the master branch.
+
 Cherry-picking is done with the ``-x`` flag.
 
-The ``v1-10-test`` branch might be broken at times during testing. Expect force-pushes there so
-committers should coordinate between themselves on who is working on the ``v1-10-test`` branch -
+The ``v2-0-test`` branch might be broken at times during testing. Expect force-pushes there so
+committers should coordinate between themselves on who is working on the ``v2-0-test`` branch -
 usually these are developers with the release manager permissions.
 
-Once the branch is stable, the ``v1-10-stable`` branch is synchronized with ``v1-10-test``.
-The ``v1-10-stable`` branch is used to release ``1.10.x`` releases.
+The ``v2-0-stable`` branch is rather stable - there are minimum changes coming from approved PRs that
+passed the tests. This means that the branch is rather, well, "stable".
+
+Once the ``v2-0-test`` branch stabilises, the ``v2-0-stable`` branch is synchronized with ``v2-0-test``.
+The ``v2-0-stable`` branch is used to release ``2.0.x`` releases.
+
+The general approach is that cherry-picking a commit that has already had a PR and unit tests run
+against main is done to ``v2-0-test`` branch, but PRs from contributors towards 2.0 should target
+``v2-0-stable`` branch.
+
+The ``v2-0-test`` branch and ``v2-0-stable`` ones are merged just before the release and that's the
+time when they converge.
+
+The production images are build in DockerHub from:
+
+* master branch for development
+* v2-0-test branch for testing 2.0.x release
+* ``2.0.*``, ``2.0.*rc*`` releases from the ``v2-0-stable`` branch when we prepare release candidates and
+  final releases. There are no production images prepared from v2-0-stable branch.
+
+Similar rules apply to ``1.10.x`` releases until June 2021. We have ``v1-10-test`` and ``v1-10-stable``
+branches there.
 
 Development Environments
 ========================
@@ -419,6 +547,23 @@ Limitations:
 They are optimized for repeatability of tests, maintainability and speed of building rather
 than production performance. The production images are not yet officially published.
 
+
+Airflow dependencies
+====================
+
+.. note::
+
+   Only ``pip`` installation is currently officially supported.
+
+   While they are some successes with using other tools like `poetry <https://python-poetry.org/>`_ or
+   `pip-tools <https://pypi.org/project/pip-tools/>`_, they do not share the same workflow as
+   ``pip`` - especially when it comes to constraint vs. requirements management.
+   Installing via ``Poetry`` or ``pip-tools`` is not currently supported.
+
+   If you wish to install airflow using those tools you should use the constraint files and convert
+   them to appropriate format and workflow that your tool requires.
+
+
 Extras
 ------
 
@@ -432,109 +577,52 @@ This is the full list of those extras:
 
   .. START EXTRAS HERE
 
-all_dbs, amazon, apache.atlas, apache.beam, apache.cassandra, apache.druid, apache.hdfs,
-apache.hive, apache.kylin, apache.pinot, apache.webhdfs, async, atlas, aws, azure, cassandra,
-celery, cgroups, cloudant, cncf.kubernetes, dask, databricks, datadog, devel, devel_hadoop, doc,
-docker, druid, elasticsearch, exasol, facebook, gcp, gcp_api, github_enterprise, google,
-google_auth, grpc, hashicorp, hdfs, hive, jdbc, jira, kerberos, kubernetes, ldap, microsoft.azure,
-microsoft.mssql, microsoft.winrm, mongo, mssql, mysql, odbc, oracle, pagerduty, papermill, password,
-pinot, postgres, presto, qds, rabbitmq, redis, salesforce, samba, segment, sendgrid, sentry,
-singularity, slack, snowflake, spark, ssh, statsd, tableau, vertica, virtualenv, webhdfs, winrm,
-yandexcloud, all, devel_ci
+airbyte, all, all_dbs, amazon, apache.atlas, apache.beam, apache.cassandra, apache.druid,
+apache.hdfs, apache.hive, apache.kylin, apache.livy, apache.pig, apache.pinot, apache.spark,
+apache.sqoop, apache.webhdfs, async, atlas, aws, azure, cassandra, celery, cgroups, cloudant,
+cncf.kubernetes, crypto, dask, databricks, datadog, devel, devel_all, devel_ci, devel_hadoop,
+dingding, discord, doc, docker, druid, elasticsearch, exasol, facebook, ftp, gcp, gcp_api,
+github_enterprise, google, google_auth, grpc, hashicorp, hdfs, hive, http, imap, jdbc, jenkins,
+jira, kerberos, kubernetes, ldap, microsoft.azure, microsoft.mssql, microsoft.winrm, mongo, mssql,
+mysql, neo4j, odbc, openfaas, opsgenie, oracle, pagerduty, papermill, password, pinot, plexus,
+postgres, presto, qds, qubole, rabbitmq, redis, s3, salesforce, samba, segment, sendgrid, sentry,
+sftp, singularity, slack, snowflake, spark, sqlite, ssh, statsd, tableau, telegram, trino, vertica,
+virtualenv, webhdfs, winrm, yandex, zendesk
 
   .. END EXTRAS HERE
 
+Provider packages
+-----------------
 
-Airflow dependencies
---------------------
+Airflow 2.0 is split into core and providers. They are delivered as separate packages:
 
-Airflow is not a standard python project. Most of the python projects fall into one of two types -
-application or library. As described in
-[StackOverflow Question](https://stackoverflow.com/questions/28509481/should-i-pin-my-python-dependencies-versions)
-decision whether to pin (freeze) dependency versions for a python project depends on the type. For
-applications, dependencies should be pinned, but for libraries, they should be open.
+* ``apache-airflow`` - core of Apache Airflow
+* ``apache-airflow-providers-*`` - More than 50 provider packages to communicate with external services
 
-For application, pinning the dependencies makes it more stable to install in the future - because new
-(even transitive) dependencies might cause installation to fail. For libraries - the dependencies should
-be open to allow several different libraries with the same requirements to be installed at the same time.
+In Airflow 1.10 all those providers were installed together within one single package and when you installed
+airflow locally, from sources, they were also installed. In Airflow 2.0, providers are separated out,
+and not packaged together with the core, unless you set ``INSTALL_PROVIDERS_FROM_SOURCES`` environment
+variable to ``true``.
 
-The problem is that Apache Airflow is a bit of both - application to install and library to be used when
-you are developing your own operators and DAGs.
+In Breeze - which is a development environment, ``INSTALL_PROVIDERS_FROM_SOURCES`` variable is set to true,
+but you can add ``--skip-installing-airflow-providers-from-sources`` flag to Breeze to skip installing providers when
+building the images.
 
-This - seemingly unsolvable - puzzle is solved by having pinned constraints files. Those are available
-as of airflow 1.10.10 and further improved with 1.10.12 (moved to separate orphan branches)
-
-Pinned constraint files
------------------------
-
-By default when you install ``apache-airflow`` package - the dependencies are as open as possible while
-still allowing the apache-airflow package to install. This means that ``apache-airflow`` package might fail to
-install in case a direct or transitive dependency is released that breaks the installation. In such case
-when installing ``apache-airflow``, you might need to provide additional constraints (for
-example ``pip install apache-airflow==1.10.2 Werkzeug<1.0.0``)
-
-However we now have ``constraints-<PYTHON_MAJOR_MINOR_VERSION>.txt`` files generated
-automatically and committed to orphan ``constraints-master`` and ``constraint-1-10`` branches based on
-the set of all latest working and tested dependency versions. Those
-``constraints-<PYTHON_MAJOR_MINOR_VERSION>.txt`` files can be used as
-constraints file when installing Apache Airflow - either from the sources:
-
-.. code-block:: bash
-
-  pip install -e . \
-    --constraint "https://raw.githubusercontent.com/apache/airflow/constraints-master/constraints-3.6.txt"
-
-
-or from the pypi package:
-
-.. code-block:: bash
-
-  pip install apache-airflow \
-    --constraint "https://raw.githubusercontent.com/apache/airflow/constraints-master/constraints-3.6.txt"
-
-
-This works also with extras - for example:
-
-.. code-block:: bash
-
-  pip install .[ssh] \
-    --constraint "https://raw.githubusercontent.com/apache/airflow/constraints-master/constraints-3.6.txt"
-
-
-As of apache-airflow 1.10.12 it is also possible to use constraints directly from github using specific
-tag/hash name. We tag commits working for particular release with constraints-<version> tag. So for example
-fixed valid constraints 1.10.12 can be used by using ``constraints-1.10.12`` tag:
-
-.. code-block:: bash
-
-  pip install apache-airflow[ssh]==1.10.12 \
-      --constraint "https://raw.githubusercontent.com/apache/airflow/constraints-1.10.12/constraints-3.6.txt"
-
-There are different set of fixed constraint files for different python major/minor versions and you should
-use the right file for the right python version.
-
-The ``constraints-<PYTHON_MAJOR_MINOR_VERSION>.txt`` will be automatically regenerated by CI cron job
-every time after the ``setup.py`` is updated and pushed if the tests are successful. There are separate
-jobs for each python version.
-
-Backport providers packages
----------------------------
-
-Since we are developing new operators in the master branch, we prepared backport packages ready to be
-installed for Airflow 1.10.* series. Those backport operators (the tested ones) are going to be released
-in PyPi and we are going to maintain the list at
-`Backported providers package page <https://cwiki.apache.org/confluence/display/AIRFLOW/Backported+providers+packages+for+Airflow+1.10.*+series>`_
+One watch-out - providers are still always installed (or rather available) if you install airflow from
+sources using ``-e`` (or ``--editable``) flag. In such case airflow is read directly from the sources
+without copying airflow packages to the usual installation location, and since 'providers' folder is
+in this airflow folder - the providers package is importable.
 
 Some of the packages have cross-dependencies with other providers packages. This typically happens for
 transfer operators where operators use hooks from the other providers in case they are transferring
 data between the providers. The list of dependencies is maintained (automatically with pre-commits)
 in the ``airflow/providers/dependencies.json``. Pre-commits are also used to generate dependencies.
-The dependency list is automatically used during pypi packages generation.
+The dependency list is automatically used during PyPI packages generation.
 
 Cross-dependencies between provider packages are converted into extras - if you need functionality from
 the other provider package you can install it adding [extra] after the
-apache-airflow-backport-providers-PROVIDER for example ``pip install
-apache-airflow-backport-providers-google[amazon]`` in case you want to use GCP
+``apache-airflow-providers-PROVIDER`` for example:
+``pip install apache-airflow-providers-google[amazon]`` in case you want to use GCP
 transfer operators from Amazon ECS.
 
 If you add a new dependency between different providers packages, it will be detected automatically during
@@ -557,19 +645,21 @@ Here is the list of packages and their extras:
 ========================== ===========================
 Package                    Extras
 ========================== ===========================
-amazon                     apache.hive,google,imap,mongo,mysql,postgres,ssh
+airbyte                    http
+amazon                     apache.hive,exasol,ftp,google,imap,mongo,mysql,postgres,ssh
+apache.beam                google
 apache.druid               apache.hive
 apache.hive                amazon,microsoft.mssql,mysql,presto,samba,vertica
 apache.livy                http
 dingding                   http
 discord                    http
-google                     amazon,apache.cassandra,cncf.kubernetes,facebook,microsoft.azure,microsoft.mssql,mysql,postgres,presto,sftp
+google                     amazon,apache.beam,apache.cassandra,cncf.kubernetes,facebook,microsoft.azure,microsoft.mssql,mysql,oracle,postgres,presto,salesforce,sftp,ssh,trino
 hashicorp                  google
-microsoft.azure            oracle
-microsoft.mssql            odbc
-mysql                      amazon,presto,vertica
+microsoft.azure            google,oracle
+mysql                      amazon,presto,trino,vertica
 opsgenie                   http
 postgres                   amazon
+salesforce                 tableau
 sftp                       ssh
 slack                      http
 snowflake                  slack
@@ -577,45 +667,248 @@ snowflake                  slack
 
   .. END PACKAGE DEPENDENCIES HERE
 
+
+Developing community managed provider packages
+----------------------------------------------
+
+While you can develop your own providers, Apache Airflow has 60+ providers that are managed by the community.
+They are part of the same repository as Apache Airflow (we use ``monorepo`` approach where different
+parts of the system are developed in the same repository but then they are packaged and released separately).
+All the community-managed providers are in 'airflow/providers' folder and they are all sub-packages of
+'airflow.providers' package. All the providers are available as ``apache-airflow-providers-<PROVIDER_ID>``
+packages.
+
+The capabilities of the community-managed providers are the same as the third-party ones. When
+the providers are installed from PyPI, they provide the entry-point containing the metadata as described
+in the previous chapter. However when they are locally developed, together with Airflow, the mechanism
+of discovery of the providers is based on ``provider.yaml`` file that is placed in the top-folder of
+the provider. Similarly as in case of the ``provider.yaml`` file is compliant with the
+`json-schema specification <https://github.com/apache/airflow/blob/master/airflow/provider.yaml.schema.json>`_.
+Thanks to that mechanism, you can develop community managed providers in a seamless way directly from
+Airflow sources, without preparing and releasing them as packages. This is achieved by:
+
+* When Airflow is installed locally in editable mode (``pip install -e``) the provider packages installed
+  from PyPI are uninstalled and the provider discovery mechanism finds the providers in the Airflow
+  sources by searching for provider.yaml files.
+
+* When you want to install Airflow from sources you can set ``INSTALL_PROVIDERS_FROM_SOURCES`` variable
+  to ``true`` and then the providers will not be installed from PyPI packages, but they will be installed
+  from local sources as part of the ``apache-airflow`` package, but additionally the ``provider.yaml`` files
+  are copied together with the sources, so that capabilities and names of the providers can be discovered.
+  This mode is especially useful when you are developing a new provider, that cannot be installed from
+  PyPI and you want to check if it installs cleanly.
+
+Regardless if you plan to contribute your provider, when you are developing your own, custom providers,
+you can use the above functionality to make your development easier. You can add your provider
+as a sub-folder of the ``airflow.providers`` package, add the ``provider.yaml`` file and install airflow
+in development mode - then capabilities of your provider will be discovered by airflow and you will see
+the provider among other providers in ``airflow providers`` command output.
+
+Documentation for the community managed providers
+-------------------------------------------------
+
+When you are developing a community-managed provider, you are supposed to make sure it is well tested
+and documented. Part of the documentation is ``provider.yaml`` file ``integration`` information and
+``version`` information. This information is stripped-out from provider info available at runtime,
+however it is used to automatically generate documentation for the provider.
+
+If you have pre-commits installed, pre-commit will warn you and let you know what changes need to be
+done in the ``provider.yaml`` file when you add a new Operator, Hooks, Sensor or Transfer. You can
+also take a look at the other ``provider.yaml`` files as examples.
+
+Well documented provider contains those:
+
+* index.rst with references to packages, API used and example dags
+* configuration reference
+* class documentation generated from PyDoc in the code
+* example dags
+* how-to guides
+
+You can see for example ``google`` provider which has very comprehensive documentation:
+
+* `Documentation <docs/apache-airflow-providers-google>`_
+* `Example DAGs <airflow/providers/google/cloud/example_dags>`_
+
+Part of the documentation are example dags. We are using the example dags for various purposes in
+providers:
+
+* showing real examples of how your provider classes (Operators/Sensors/Transfers) can be used
+* snippets of the examples are embedded in the documentation via ``exampleinclude::`` directive
+* examples are executable as system tests
+
+Testing the community managed providers
+---------------------------------------
+
+We have high requirements when it comes to testing the community managed providers. We have to be sure
+that we have enough coverage and ways to tests for regressions before the community accepts such
+providers.
+
+* Unit tests have to be comprehensive and they should tests for possible regressions and edge cases
+  not only "green path"
+
+* Integration tests where 'local' integration with a component is possible (for example tests with
+  MySQL/Postgres DB/Trino/Kerberos all have integration tests which run with real, dockerized components
+
+* System Tests which provide end-to-end testing, usually testing together several operators, sensors,
+  transfers connecting to a real external system
+
+You can read more about out approach for tests in `TESTING.rst <TESTING.rst>`_ but here
+are some highlights.
+
+Dependency management
+=====================
+
+Airflow is not a standard python project. Most of the python projects fall into one of two types -
+application or library. As described in
+`this StackOverflow question <https://stackoverflow.com/questions/28509481/should-i-pin-my-python-dependencies-versions>`_,
+the decision whether to pin (freeze) dependency versions for a python project depends on the type. For
+applications, dependencies should be pinned, but for libraries, they should be open.
+
+For application, pinning the dependencies makes it more stable to install in the future - because new
+(even transitive) dependencies might cause installation to fail. For libraries - the dependencies should
+be open to allow several different libraries with the same requirements to be installed at the same time.
+
+The problem is that Apache Airflow is a bit of both - application to install and library to be used when
+you are developing your own operators and DAGs.
+
+This - seemingly unsolvable - puzzle is solved by having pinned constraints files. Those are available
+as of airflow 1.10.10 and further improved with 1.10.12 (moved to separate orphan branches)
+
+Pinned constraint files
+=======================
+
+.. note::
+
+   Only ``pip`` installation is officially supported.
+
+   While they are some successes with using other tools like `poetry <https://python-poetry.org/>`_ or
+   `pip-tools <https://pypi.org/project/pip-tools/>`_, they do not share the same workflow as
+   ``pip`` - especially when it comes to constraint vs. requirements management.
+   Installing via ``Poetry`` or ``pip-tools`` is not currently supported.
+
+   If you wish to install airflow using those tools you should use the constraint files and convert
+   them to appropriate format and workflow that your tool requires.
+
+
+By default when you install ``apache-airflow`` package - the dependencies are as open as possible while
+still allowing the apache-airflow package to install. This means that ``apache-airflow`` package might fail to
+install in case a direct or transitive dependency is released that breaks the installation. In such case
+when installing ``apache-airflow``, you might need to provide additional constraints (for
+example ``pip install apache-airflow==1.10.2 Werkzeug<1.0.0``)
+
+There are several sets of constraints we keep:
+
+* 'constraints' - those are constraints generated by matching the current airflow version from sources
+   and providers that are installed from PyPI. Those are constraints used by the users who want to
+   install airflow with pip, they are named ``constraints-<PYTHON_MAJOR_MINOR_VERSION>.txt``.
+
+* "constraints-source-providers" - those are constraints generated by using providers installed from
+  current sources. While adding new providers their dependencies might change, so this set of providers
+  is the current set of the constraints for airflow and providers from the current master sources.
+  Those providers are used by CI system to keep "stable" set of constraints. Thet are named
+  ``constraints-source-providers-<PYTHON_MAJOR_MINOR_VERSION>.txt``
+
+* "constraints-no-providers" - those are constraints generated from only Apache Airflow, without any
+  providers. If you want to manage airflow separately and then add providers individually, you can
+  use those. Those constraints are named ``constraints-no-providers-<PYTHON_MAJOR_MINOR_VERSION>.txt``.
+
+We also have constraints with "source-providers" but they are used i
+
+The first ones can be used as constraints file when installing Apache Airflow in a repeatable way.
+It can be done from the sources:
+
+.. code-block:: bash
+
+  pip install -e . \
+    --constraint "https://raw.githubusercontent.com/apache/airflow/constraints-master/constraints-3.6.txt"
+
+
+or from the PyPI package:
+
+.. code-block:: bash
+
+  pip install apache-airflow \
+    --constraint "https://raw.githubusercontent.com/apache/airflow/constraints-master/constraints-3.6.txt"
+
+
+This works also with extras - for example:
+
+.. code-block:: bash
+
+  pip install .[ssh] \
+    --constraint "https://raw.githubusercontent.com/apache/airflow/constraints-master/constraints-3.6.txt"
+
+
+As of apache-airflow 1.10.12 it is also possible to use constraints directly from GitHub using specific
+tag/hash name. We tag commits working for particular release with constraints-<version> tag. So for example
+fixed valid constraints 1.10.12 can be used by using ``constraints-1.10.12`` tag:
+
+.. code-block:: bash
+
+  pip install apache-airflow[ssh]==1.10.12 \
+      --constraint "https://raw.githubusercontent.com/apache/airflow/constraints-1.10.12/constraints-3.6.txt"
+
+There are different set of fixed constraint files for different python major/minor versions and you should
+use the right file for the right python version.
+
+If you want to update just airflow dependencies, without paying attention to providers, you can do it using
+-no-providers constraint files as well.
+
+.. code-block:: bash
+
+  pip install . --upgrade \
+    --constraint "https://raw.githubusercontent.com/apache/airflow/constraints-master/constraints-no-providers-3.6.txt"
+
+
+The ``constraints-<PYTHON_MAJOR_MINOR_VERSION>.txt`` and ``constraints-no-providers-<PYTHON_MAJOR_MINOR_VERSION>.txt``
+will be automatically regenerated by CI job every time after the ``setup.py`` is updated and pushed
+if the tests are successful.
+
+Manually generating constraint files
+------------------------------------
+
+The constraint files are generated automatically by the CI job. Sometimes however it is needed to regenerate
+them manually (committers only). For example when master build did not succeed for quite some time).
+This can be done by running this (it utilizes parallel preparation of the constraints):
+
+.. code-block:: bash
+
+    export CURRENT_PYTHON_MAJOR_MINOR_VERSIONS_AS_STRING="3.6 3.7 3.8"
+    for python_version in $(echo "${CURRENT_PYTHON_MAJOR_MINOR_VERSIONS_AS_STRING}")
+    do
+      ./breeze build-image --upgrade-to-newer-dependencies --python ${python_version} --build-cache-local
+      ./breeze build-image --upgrade-to-newer-dependencies --python ${python_version} --build-cache-local
+      ./breeze build-image --upgrade-to-newer-dependencies --python ${python_version} --build-cache-local
+    done
+
+    GENERATE_CONSTRAINTS_MODE="pypi-providers" ./scripts/ci/constraints/ci_generate_all_constraints.sh
+    GENERATE_CONSTRAINTS_MODE="source-providers" ./scripts/ci/constraints/ci_generate_all_constraints.sh
+    GENERATE_CONSTRAINTS_MODE="no-providers" ./scripts/ci/constraints/ci_generate_all_constraints.sh
+
+    AIRFLOW_SOURCES=$(pwd)
+
+
+The constraints will be generated in "files/constraints-PYTHON_VERSION/constraints-*.txt files. You need to
+checkout the right 'constraints-' branch in a separate repository and then you can copy, commit and push the
+generated files:
+
+.. code-block:: bash
+
+    cd <AIRFLOW_WITH_CONSTRAINT_MASTER_DIRECTORY>
+    git pull
+    cp ${AIRFLOW_SOURCES}/files/constraints-*/constraints*.txt .
+    git diff
+    git add .
+    git commit -m "Your commit message here" --no-verify
+    git push
+
+
 Documentation
 =============
 
-The latest API documentation (for the master branch) is usually available
-`here <https://airflow.readthedocs.io/en/latest/>`__.
+Documentation for ``apache-airflow`` package and other packages that are closely related to it ie. providers packages are in ``/docs/`` directory. For detailed information on documentation development, see: `docs/README.rst <docs/README.rst>`_
 
-To generate a local version:
-
-1.  Set up an Airflow development environment.
-
-2.  Install the ``doc`` extra.
-
-.. code-block:: bash
-
-    pip install -e '.[doc]'
-
-
-3.  Generate and serve the documentation as follows:
-
-.. code-block:: bash
-
-    cd docs
-    ./build
-    ./start_doc_server.sh
-
-.. note::
-    The docs build script ``build`` requires Python 3.6 or greater.
-
-**Known issues:**
-
-If you are creating a new directory for new integration in the ``airflow.providers`` package,
-you should also update the ``docs/autoapi_templates/index.rst`` file.
-
-If you are creating new ``hooks``, ``sensors``, ``operators`` directory in
-the ``airflow.providers`` package, you should also update
-the ``docs/operators-and-hooks-ref.rst`` file.
-
-If you are creating ``example_dags`` directory, you need to create ``example_dags/__init__.py`` with Apache
-license or copy another ``__init__.py`` file that contains the necessary license.
+For Helm Chart documentation, see: `chart/README.md <chart/README.md>`__
 
 Static code checks
 ==================
@@ -635,6 +928,25 @@ Coding style and best practices
 Most of our coding style rules are enforced programmatically by flake8 and pylint (which are run automatically
 on every pull request), but there are some rules that are not yet automated and are more Airflow specific or
 semantic than style
+
+Don't Use Asserts Outside Tests
+-------------------------------
+
+Our community agreed that to various reasons we do not use ``assert`` in production code of Apache Airflow.
+For details check the relevant `mailing list thread <https://lists.apache.org/thread.html/bcf2d23fcd79e21b3aac9f32914e1bf656e05ffbcb8aa282af497a2d%40%3Cdev.airflow.apache.org%3E>`_.
+
+In other words instead of doing:
+
+.. code-block:: python
+
+    assert some_predicate()
+
+you should do:
+
+.. code-block:: python
+
+    if not some_predicate():
+        handle_the_case()
 
 Database Session Handling
 -------------------------
@@ -668,13 +980,54 @@ If this function is designed to be called by "end-users" (i.e. DAG authors) then
       ...
       # You SHOULD not commit the session here. The wrapper will take care of commit()/rollback() if exception
 
+Don't use time() for duration calculations
+-----------------------------------------
+
+If you wish to compute the time difference between two events with in the same process, use
+``time.monotonic()``, not ``time.time()`` nor ``timzeone.utcnow()``.
+
+If you are measuring duration for performance reasons, then ``time.perf_counter()`` should be used. (On many
+platforms, this uses the same underlying clock mechanism as monotonic, but ``perf_counter`` is guaranteed to be
+the highest accuracy clock on the system, monotonic is simply "guaranteed" to not go backwards.)
+
+If you wish to time how long a block of code takes, use ``Stats.timer()`` -- either with a metric name, which
+will be timed and submitted automatically:
+
+.. code-block:: python
+
+    from airflow.stats import Stats
+
+    ...
+
+    with Stats.timer("my_timer_metric"):
+        ...
+
+or to time but not send a metric:
+
+.. code-block:: python
+
+    from airflow.stats import Stats
+
+    ...
+
+    with Stats.timer() as timer:
+        ...
+
+    log.info("Code took %.3f seconds", timer.duration)
+
+For full docs on ``timer()`` check out `airflow/stats.py`_.
+
+If the start_date of a duration calculation needs to be stored in a database, then this has to be done using
+datetime objects. In all other cases, using datetime for duration calculation MUST be avoided as creating and
+diffing datetime operations are (comparatively) slow.
+
 Naming Conventions for provider packages
 ----------------------------------------
 
 In Airflow 2.0 we standardized and enforced naming for provider packages, modules and classes.
 those rules (introduced as AIP-21) were not only introduced but enforced using automated checks
 that verify if the naming conventions are followed. Here is a brief summary of the rules, for
-detailed discussion you can go to [AIP-21 Changes in import paths](https://cwiki.apache.org/confluence/display/AIRFLOW/AIP-21%3A+Changes+in+import+paths)
+detailed discussion you can go to `AIP-21 Changes in import paths <https://cwiki.apache.org/confluence/display/AIRFLOW/AIP-21%3A+Changes+in+import+paths>`_
 
 The rules are as follows:
 
@@ -744,7 +1097,7 @@ We support the following types of tests:
   additional services running, such as Postgres, Mysql, Kerberos, etc.
 
 * **System tests** are automatic tests that use external systems like
-  Google Cloud Platform. These tests are intended for an end-to-end DAG execution.
+  Google Cloud. These tests are intended for an end-to-end DAG execution.
 
 For details on running different types of Airflow tests, see `TESTING.rst <TESTING.rst>`_.
 
@@ -790,7 +1143,7 @@ To install yarn on macOS:
 
 .. code-block:: bash
 
-    brew install node --without-npm
+    brew install node
     brew install yarn
     yarn config set prefix ~/.yarn
 
@@ -843,13 +1196,13 @@ commands:
     yarn run dev
 
 
-Follow Javascript Style Guide
+Follow JavaScript Style Guide
 -----------------------------
 
 We try to enforce a more consistent style and follow the JS community
 guidelines.
 
-Once you add or modify any javascript code in the project, please make sure it
+Once you add or modify any JavaScript code in the project, please make sure it
 follows the guidelines defined in `Airbnb
 JavaScript Style Guide <https://github.com/airbnb/javascript>`__.
 
@@ -881,66 +1234,109 @@ modified the master in your fork, you might loose those changes.
 How to rebase PR
 ================
 
-A lot of people are unfamiliar with rebase workflow in Git, but we think it is an excellent workflow,
-much better than merge workflow, so here is a short guide for those who would like to learn it. It's really
-worth to spend a few minutes learning it. As opposed to merge workflow, the rebase workflow allows to
-clearly separate your changes from changes of others, puts responsibility of proper rebase on the
-author of the change. It also produces a "single-line" series of commits in master branch which
-makes it much easier to understand what was going on and to find reasons for problems (it is especially
-useful for "bisecting" when looking for a commit that introduced some bugs.
+A lot of people are unfamiliar with the rebase workflow in Git, but we think it is an excellent workflow,
+providing a better alternative to the merge workflow. We've therefore written a short guide for those who would like to learn it.
 
-First of all - you can read about rebase workflow here:
-`Merging vs. rebasing <https://www.atlassian.com/git/tutorials/merging-vs-rebasing>`_ - this is an
-excellent article that describes all ins/outs of rebase. I recommend reading it and keeping it as reference.
+As opposed to the merge workflow, the rebase workflow allows us to
+clearly separate your changes from the changes of others. It puts the responsibility of rebasing on the
+author of the change. It also produces a "single-line" series of commits on the master branch. This
+makes it easier to understand what was going on and to find reasons for problems (it is especially
+useful for "bisecting" when looking for a commit that introduced some bugs).
+
+First of all, we suggest you read about the rebase workflow here:
+`Merging vs. rebasing <https://www.atlassian.com/git/tutorials/merging-vs-rebasing>`_. This is an
+excellent article that describes all the ins/outs of the rebase workflow. I recommend keeping it for future reference.
 
 The goal of rebasing your PR on top of ``apache/master`` is to "transplant" your change on top of
 the latest changes that are merged by others. It also allows you to fix all the conflicts
-that are result of other people changing the same files as you and merging the changes to ``apache/master``.
+that arise as a result of other people changing the same files as you and merging the changes to ``apache/master``.
 
-Here is how rebase looks in practice:
+Here is how rebase looks in practice (you can find a summary below these detailed steps):
 
-1. You need to add Apache remote to your git repository. You can add it as "apache" remote so that
-   you can refer to it easily:
+1. You first need to add the Apache project remote to your git repository. This is only necessary once,
+so if it's not the first time you are following this tutorial you can skip this step. In this example,
+we will be adding the remote
+as "apache" so you can refer to it easily:
 
-``git remote add apache git@github.com:apache/airflow.git`` if you use ssh or
-``git remote add apache https://github.com/apache/airflow.git`` if you use https.
+* If you use ssh: ``git remote add apache git@github.com:apache/airflow.git``
+* If you use https: ``git remote add apache https://github.com/apache/airflow.git``
 
-Later on
+2. You then need to make sure that you have the latest master fetched from the ``apache`` repository. You can do this
+   via:
 
-2. You need to make sure that you have the latest master fetched from ``apache`` repository. You can do it
-   by ``git fetch apache`` for apache remote or ``git fetch --all`` to fetch all remotes.
+   ``git fetch apache`` (to fetch apache remote)
 
-3. Assuming that your feature is in a branch in your repository called ``my-branch`` you can check easily
-   what is the base commit you should rebase from by: ``git merge-base my-branch apache/master``.
-   This will print the HASH of the base commit which you should use to rebase your feature from -
-   for example: ``5abce471e0690c6b8d06ca25685b0845c5fd270f``. You can also find this commit hash manually -
-   if you want better control. Run ``git log`` and find the first commit that you DO NOT want to "transplant".
-   ``git rebase HASH`` will "trasplant" all commits after the commit with the HASH.
+   ``git fetch --all``  (to fetch all remotes)
 
-4. Make sure you checked out your branch locally:
+3. Assuming that your feature is in a branch in your repository called ``my-branch`` you can easily check
+   what is the base commit you should rebase from by:
 
-``git checkout my-branch``
+   ``git merge-base my-branch apache/master``
+
+   This will print the HASH of the base commit which you should use to rebase your feature from.
+   For example: ``5abce471e0690c6b8d06ca25685b0845c5fd270f``. Copy that HASH and go to the next step.
+
+   Optionally, if you want better control you can also find this commit hash manually.
+
+   Run:
+
+   ``git log``
+
+   And find the first commit that you DO NOT want to "transplant".
+
+   Performing:
+
+   ``git rebase HASH``
+
+   Will "transplant" all commits after the commit with the HASH.
+
+4. Providing that you weren't already working on your branch, check out your feature branch locally via:
+
+   ``git checkout my-branch``
 
 5. Rebase:
-   Run: ``git rebase HASH --onto apache/master``
-   for example: ``git rebase 5abce471e0690c6b8d06ca25685b0845c5fd270f --onto apache/master``
+
+   ``git rebase HASH --onto apache/master``
+
+   For example:
+
+   ``git rebase 5abce471e0690c6b8d06ca25685b0845c5fd270f --onto apache/master``
 
 6. If you have no conflicts - that's cool. You rebased. You can now run ``git push --force-with-lease`` to
    push your changes to your repository. That should trigger the build in our CI if you have a
-   Pull Request opened already.
+   Pull Request (PR) opened already.
 
 7. While rebasing you might have conflicts. Read carefully what git tells you when it prints information
    about the conflicts. You need to solve the conflicts manually. This is sometimes the most difficult
-   part and requires deliberate correcting your code looking what has changed since you developed your
-   changes. There are various tools that can help you with that. You can use ``git mergetool`` (and you can
-   configure different merge tools with it). Also you can use IntelliJ/PyCharm excellent merge tool.
-   When you open project in PyCharm which has conflict you can go to VCS->Git->Resolve Conflicts and there
-   you have a very intuitive and helpful merge tool. You can see more information
-   about it in `Resolve conflicts <https://www.jetbrains.com/help/idea/resolving-conflicts.html.>`_
+   part and requires deliberately correcting your code and looking at what has changed since you developed your
+   changes.
 
-8. After you solved conflicts simply run ``git rebase --continue`` and go either to point 6. or 7.
-   above depending if you have more commits that cause conflicts in your PR (rebasing applies each
+   There are various tools that can help you with this. You can use:
+
+   ``git mergetool``
+
+   You can configure different merge tools with it. You can also use IntelliJ/PyCharm's excellent merge tool.
+   When you open a project in PyCharm which has conflicts, you can go to VCS > Git > Resolve Conflicts and there
+   you have a very intuitive and helpful merge tool. For more information, see
+   `Resolve conflicts <https://www.jetbrains.com/help/idea/resolving-conflicts.html>`_.
+
+8. After you've solved your conflict run:
+
+   ``git rebase --continue``
+
+   And go either to point 6. or 7, depending on whether you have more commits that cause conflicts in your PR (rebasing applies each
    commit from your PR one-by-one).
+
+Summary
+-------------
+
+Useful when you understand the flow but don't remember the steps and want a quick reference.
+
+``git fetch --all``
+``git merge-base my-branch apache/master``
+``git checkout my-branch``
+``git rebase HASH --onto apache/master``
+``git push --force-with-lease``
 
 How to communicate
 ==================
@@ -968,17 +1364,17 @@ You can join the channels via links at the `Airflow Community page <https://airf
    * detailed discussions on big proposals (Airflow Improvement Proposals also name AIPs)
    * helpful, shared resources (for example Apache Airflow logos
    * information that can be re-used by others (for example instructions on preparing workshops)
-* Github `Pull Requests (PRs) <https://github.com/apache/airflow/pulls>`_ for:
+* GitHub `Pull Requests (PRs) <https://github.com/apache/airflow/pulls>`_ for:
    * discussing implementation details of PRs
    * not for architectural discussions (use the devlist for that)
 * The deprecated `JIRA issues <https://issues.apache.org/jira/projects/AIRFLOW/issues/AIRFLOW-4470?filter=allopenissues>`_ for:
-   * checking out old but still valuable issues that are not on Github yet
-   * mentioning the JIRA issue number in the title of the related PR you would like to open on Github
+   * checking out old but still valuable issues that are not on GitHub yet
+   * mentioning the JIRA issue number in the title of the related PR you would like to open on GitHub
 
 **IMPORTANT**
-We don't create new issues on JIRA anymore. The reason we still look at JIRA issues is that there are valuable tickets inside of it. However, each new PR should be created on `Github issues <https://github.com/apache/airflow/issues>`_ as stated in `Contribution Workflow Example <https://github.com/apache/airflow/blob/master/CONTRIBUTING.rst#contribution-workflow-example>`_
+We don't create new issues on JIRA anymore. The reason we still look at JIRA issues is that there are valuable tickets inside of it. However, each new PR should be created on `GitHub issues <https://github.com/apache/airflow/issues>`_ as stated in `Contribution Workflow Example <https://github.com/apache/airflow/blob/master/CONTRIBUTING.rst#contribution-workflow-example>`_
 
-* The `Apache Airflow Slack <https://apache-airflow-slack.herokuapp.com/>`_ for:
+* The `Apache Airflow Slack <https://s.apache.org/airflow-slack>`_ for:
    * ad-hoc questions related to development (#development channel)
    * asking for review (#development channel)
    * asking for help with PRs (#how-to-pr channel)
@@ -1051,8 +1447,21 @@ Here are a few rules that are important to keep in mind when you enter our commu
  * It’s OK to express your own emotions while communicating - it helps other people to understand you
  * Be considerate for feelings of others. Tell about how you feel not what you think of others
 
+
+
+Commit Policy
+=============
+
+The following commit policy passed by a vote 8(binding FOR) to 0 against on May 27, 2016 on the dev list
+and slightly modified and consensus reached in October 2020:
+
+* Commits need a +1 vote from a committer who is not the author
+* Do not merge a PR that regresses linting or does not pass CI tests (unless we have
+  justification such as clearly transient error).
+* When we do AIP voting, both PMC and committer +1s are considered as binding vote.
+
 Resources & Links
 =================
-- `Airflow’s official documentation <http://airflow.apache.org/>`__
+- `Airflow’s official documentation <https://airflow.apache.org/>`__
 
 - `More resources and links to Airflow related content on the Wiki <https://cwiki.apache.org/confluence/display/AIRFLOW/Airflow+Links>`__

@@ -21,22 +21,27 @@ import textwrap
 import unittest
 from datetime import datetime, timezone
 from tempfile import NamedTemporaryFile, mkdtemp
+from unittest import mock
 from unittest.mock import patch
 
 from freezegun import freeze_time
 from sqlalchemy import func
+from sqlalchemy.exc import OperationalError
 
 import airflow.example_dags
 from airflow import models
+from airflow.exceptions import SerializationError
 from airflow.models import DagBag, DagModel
 from airflow.models.serialized_dag import SerializedDagModel
 from airflow.utils.dates import timezone as tz
 from airflow.utils.session import create_session
+from airflow.www.security import ApplessAirflowSecurityManager
 from tests import cluster_policies
 from tests.models import TEST_DAGS_FOLDER
 from tests.test_utils import db
 from tests.test_utils.asserts import assert_queries_count
 from tests.test_utils.config import conf_vars
+from tests.test_utils.permissions import delete_dag_specific_permissions
 
 
 class TestDagBag(unittest.TestCase):
@@ -62,16 +67,15 @@ class TestDagBag(unittest.TestCase):
         """
         dagbag = models.DagBag(dag_folder=self.empty_dir, include_examples=True)
 
-        some_expected_dag_ids = ["example_bash_operator",
-                                 "example_branch_operator"]
+        some_expected_dag_ids = ["example_bash_operator", "example_branch_operator"]
 
         for dag_id in some_expected_dag_ids:
             dag = dagbag.get_dag(dag_id)
 
-            self.assertIsNotNone(dag)
-            self.assertEqual(dag_id, dag.dag_id)
+            assert dag is not None
+            assert dag_id == dag.dag_id
 
-        self.assertGreaterEqual(dagbag.size(), 7)
+        assert dagbag.size() >= 7
 
     def test_get_non_existing_dag(self):
         """
@@ -80,7 +84,7 @@ class TestDagBag(unittest.TestCase):
         dagbag = models.DagBag(dag_folder=self.empty_dir, include_examples=False)
 
         non_existing_dag_id = "non_existing_dag_id"
-        self.assertIsNone(dagbag.get_dag(non_existing_dag_id))
+        assert dagbag.get_dag(non_existing_dag_id) is None
 
     def test_dont_load_example(self):
         """
@@ -88,7 +92,7 @@ class TestDagBag(unittest.TestCase):
         """
         dagbag = models.DagBag(dag_folder=self.empty_dir, include_examples=False)
 
-        self.assertEqual(dagbag.size(), 0)
+        assert dagbag.size() == 0
 
     def test_safe_mode_heuristic_match(self):
         """With safe mode enabled, a file matching the discovery heuristics
@@ -102,10 +106,8 @@ class TestDagBag(unittest.TestCase):
             with conf_vars({('core', 'dags_folder'): self.empty_dir}):
                 dagbag = models.DagBag(include_examples=False, safe_mode=True)
 
-            self.assertEqual(len(dagbag.dagbag_stats), 1)
-            self.assertEqual(
-                dagbag.dagbag_stats[0].file,
-                "/{}".format(os.path.basename(f.name)))
+            assert len(dagbag.dagbag_stats) == 1
+            assert dagbag.dagbag_stats[0].file == f"/{os.path.basename(f.name)}"
 
     def test_safe_mode_heuristic_mismatch(self):
         """With safe mode enabled, a file not matching the discovery heuristics
@@ -114,29 +116,26 @@ class TestDagBag(unittest.TestCase):
         with NamedTemporaryFile(dir=self.empty_dir, suffix=".py"):
             with conf_vars({('core', 'dags_folder'): self.empty_dir}):
                 dagbag = models.DagBag(include_examples=False, safe_mode=True)
-            self.assertEqual(len(dagbag.dagbag_stats), 0)
+            assert len(dagbag.dagbag_stats) == 0
 
     def test_safe_mode_disabled(self):
-        """With safe mode disabled, an empty python file should be discovered.
-        """
+        """With safe mode disabled, an empty python file should be discovered."""
         with NamedTemporaryFile(dir=self.empty_dir, suffix=".py") as f:
             with conf_vars({('core', 'dags_folder'): self.empty_dir}):
                 dagbag = models.DagBag(include_examples=False, safe_mode=False)
-            self.assertEqual(len(dagbag.dagbag_stats), 1)
-            self.assertEqual(
-                dagbag.dagbag_stats[0].file,
-                "/{}".format(os.path.basename(f.name)))
+            assert len(dagbag.dagbag_stats) == 1
+            assert dagbag.dagbag_stats[0].file == f"/{os.path.basename(f.name)}"
 
     def test_process_file_that_contains_multi_bytes_char(self):
         """
         test that we're able to parse file that contains multi-byte char
         """
-        f = NamedTemporaryFile()
-        f.write('\u3042'.encode())  # write multi-byte char (hiragana)
-        f.flush()
+        with NamedTemporaryFile() as f:
+            f.write('\u3042'.encode())  # write multi-byte char (hiragana)
+            f.flush()
 
-        dagbag = models.DagBag(dag_folder=self.empty_dir, include_examples=False)
-        self.assertEqual([], dagbag.process_file(f.name))
+            dagbag = models.DagBag(dag_folder=self.empty_dir, include_examples=False)
+            assert [] == dagbag.process_file(f.name)
 
     def test_zip_skip_log(self):
         """
@@ -147,11 +146,10 @@ class TestDagBag(unittest.TestCase):
             test_zip_path = os.path.join(TEST_DAGS_FOLDER, "test_zip.zip")
             dagbag = models.DagBag(dag_folder=test_zip_path, include_examples=False)
 
-            self.assertTrue(dagbag.has_logged)
-            self.assertIn(
+            assert dagbag.has_logged
+            assert (
                 f'INFO:airflow.models.dagbag.DagBag:File {test_zip_path}:file_no_airflow_dag.py '
-                'assumed to contain no DAGs. Skipping.',
-                cm.output
+                'assumed to contain no DAGs. Skipping.' in cm.output
             )
 
     def test_zip(self):
@@ -160,7 +158,7 @@ class TestDagBag(unittest.TestCase):
         """
         dagbag = models.DagBag(dag_folder=self.empty_dir, include_examples=False)
         dagbag.process_file(os.path.join(TEST_DAGS_FOLDER, "test_zip.zip"))
-        self.assertTrue(dagbag.get_dag("test_zip_dag"))
+        assert dagbag.get_dag("test_zip_dag")
 
     def test_process_file_cron_validity_check(self):
         """
@@ -170,10 +168,11 @@ class TestDagBag(unittest.TestCase):
         invalid_dag_files = ["test_invalid_cron.py", "test_zip_invalid_cron.zip"]
         dagbag = models.DagBag(dag_folder=self.empty_dir, include_examples=False)
 
-        self.assertEqual(len(dagbag.import_errors), 0)
+        assert len(dagbag.import_errors) == 0
         for file in invalid_dag_files:
             dagbag.process_file(os.path.join(TEST_DAGS_FOLDER, file))
-        self.assertEqual(len(dagbag.import_errors), len(invalid_dag_files))
+        assert len(dagbag.import_errors) == len(invalid_dag_files)
+        assert len(dagbag.dags) == 0
 
     @patch.object(DagModel, 'get_current')
     def test_get_dag_without_refresh(self, mock_dagmodel):
@@ -199,9 +198,9 @@ class TestDagBag(unittest.TestCase):
         dagbag.process_file_calls
 
         # Should not call process_file again, since it's already loaded during init.
-        self.assertEqual(1, dagbag.process_file_calls)
-        self.assertIsNotNone(dagbag.get_dag(dag_id))
-        self.assertEqual(1, dagbag.process_file_calls)
+        assert 1 == dagbag.process_file_calls
+        assert dagbag.get_dag(dag_id) is not None
+        assert 1 == dagbag.process_file_calls
 
     def test_get_dag_fileloc(self):
         """
@@ -215,12 +214,12 @@ class TestDagBag(unittest.TestCase):
             'example_bash_operator': 'airflow/example_dags/example_bash_operator.py',
             'example_subdag_operator': 'airflow/example_dags/example_subdag_operator.py',
             'example_subdag_operator.section-1': 'airflow/example_dags/subdags/subdag.py',
-            'test_zip_dag': 'dags/test_zip.zip/test_zip.py'
+            'test_zip_dag': 'dags/test_zip.zip/test_zip.py',
         }
 
         for dag_id, path in expected.items():
             dag = dagbag.get_dag(dag_id)
-            self.assertTrue(dag.fileloc.endswith(path))
+            assert dag.fileloc.endswith(path)
 
     @patch.object(DagModel, "get_current")
     def test_refresh_py_dag(self, mock_dagmodel):
@@ -230,14 +229,10 @@ class TestDagBag(unittest.TestCase):
         example_dags_folder = airflow.example_dags.__path__[0]
 
         dag_id = "example_bash_operator"
-        fileloc = os.path.realpath(
-            os.path.join(example_dags_folder, "example_bash_operator.py")
-        )
+        fileloc = os.path.realpath(os.path.join(example_dags_folder, "example_bash_operator.py"))
 
         mock_dagmodel.return_value = DagModel()
-        mock_dagmodel.return_value.last_expired = datetime.max.replace(
-            tzinfo=timezone.utc
-        )
+        mock_dagmodel.return_value.last_expired = datetime.max.replace(tzinfo=timezone.utc)
         mock_dagmodel.return_value.fileloc = fileloc
 
         class _TestDagBag(DagBag):
@@ -250,11 +245,11 @@ class TestDagBag(unittest.TestCase):
 
         dagbag = _TestDagBag(dag_folder=self.empty_dir, include_examples=True)
 
-        self.assertEqual(1, dagbag.process_file_calls)
+        assert 1 == dagbag.process_file_calls
         dag = dagbag.get_dag(dag_id)
-        self.assertIsNotNone(dag)
-        self.assertEqual(dag_id, dag.dag_id)
-        self.assertEqual(2, dagbag.process_file_calls)
+        assert dag is not None
+        assert dag_id == dag.dag_id
+        assert 2 == dagbag.process_file_calls
 
     @patch.object(DagModel, "get_current")
     def test_refresh_packaged_dag(self, mock_dagmodel):
@@ -262,14 +257,10 @@ class TestDagBag(unittest.TestCase):
         Test that we can refresh a packaged DAG
         """
         dag_id = "test_zip_dag"
-        fileloc = os.path.realpath(
-            os.path.join(TEST_DAGS_FOLDER, "test_zip.zip/test_zip.py")
-        )
+        fileloc = os.path.realpath(os.path.join(TEST_DAGS_FOLDER, "test_zip.zip/test_zip.py"))
 
         mock_dagmodel.return_value = DagModel()
-        mock_dagmodel.return_value.last_expired = datetime.max.replace(
-            tzinfo=timezone.utc
-        )
+        mock_dagmodel.return_value.last_expired = datetime.max.replace(tzinfo=timezone.utc)
         mock_dagmodel.return_value.fileloc = fileloc
 
         class _TestDagBag(DagBag):
@@ -282,45 +273,47 @@ class TestDagBag(unittest.TestCase):
 
         dagbag = _TestDagBag(dag_folder=os.path.realpath(TEST_DAGS_FOLDER), include_examples=False)
 
-        self.assertEqual(1, dagbag.process_file_calls)
+        assert 1 == dagbag.process_file_calls
         dag = dagbag.get_dag(dag_id)
-        self.assertIsNotNone(dag)
-        self.assertEqual(dag_id, dag.dag_id)
-        self.assertEqual(2, dagbag.process_file_calls)
+        assert dag is not None
+        assert dag_id == dag.dag_id
+        assert 2 == dagbag.process_file_calls
 
     def process_dag(self, create_dag):
         """
         Helper method to process a file generated from the input create_dag function.
         """
         # write source to file
-        source = textwrap.dedent(''.join(
-            inspect.getsource(create_dag).splitlines(True)[1:-1]))
-        f = NamedTemporaryFile()
-        f.write(source.encode('utf8'))
-        f.flush()
+        source = textwrap.dedent(''.join(inspect.getsource(create_dag).splitlines(True)[1:-1]))
+        with NamedTemporaryFile() as f:
+            f.write(source.encode('utf8'))
+            f.flush()
 
-        dagbag = models.DagBag(dag_folder=self.empty_dir, include_examples=False)
-        found_dags = dagbag.process_file(f.name)
-        return dagbag, found_dags, f.name
+            dagbag = models.DagBag(dag_folder=self.empty_dir, include_examples=False)
+            found_dags = dagbag.process_file(f.name)
+            return dagbag, found_dags, f.name
 
-    def validate_dags(self, expected_parent_dag, actual_found_dags, actual_dagbag,
-                      should_be_found=True):
+    def validate_dags(self, expected_parent_dag, actual_found_dags, actual_dagbag, should_be_found=True):
         expected_dag_ids = list(map(lambda dag: dag.dag_id, expected_parent_dag.subdags))
         expected_dag_ids.append(expected_parent_dag.dag_id)
 
         actual_found_dag_ids = list(map(lambda dag: dag.dag_id, actual_found_dags))
 
         for dag_id in expected_dag_ids:
-            actual_dagbag.log.info('validating %s' % dag_id)
-            self.assertEqual(
-                dag_id in actual_found_dag_ids, should_be_found,
-                'dag "%s" should %shave been found after processing dag "%s"' %
-                (dag_id, '' if should_be_found else 'not ', expected_parent_dag.dag_id)
+            actual_dagbag.log.info(f'validating {dag_id}')
+            assert (
+                dag_id in actual_found_dag_ids
+            ) == should_be_found, 'dag "{}" should {}have been found after processing dag "{}"'.format(
+                dag_id,
+                '' if should_be_found else 'not ',
+                expected_parent_dag.dag_id,
             )
-            self.assertEqual(
-                dag_id in actual_dagbag.dags, should_be_found,
-                'dag "%s" should %sbe in dagbag.dags after processing dag "%s"' %
-                (dag_id, '' if should_be_found else 'not ', expected_parent_dag.dag_id)
+            assert (
+                dag_id in actual_dagbag.dags
+            ) == should_be_found, 'dag "{}" should {}be in dagbag.dags after processing dag "{}"'.format(
+                dag_id,
+                '' if should_be_found else 'not ',
+                expected_parent_dag.dag_id,
             )
 
     def test_load_subdags(self):
@@ -329,40 +322,35 @@ class TestDagBag(unittest.TestCase):
             import datetime  # pylint: disable=redefined-outer-name,reimported
 
             from airflow.models import DAG
-            from airflow.operators.dummy_operator import DummyOperator
-            from airflow.operators.subdag_operator import SubDagOperator
-            dag_name = 'master'
-            default_args = {
-                'owner': 'owner1',
-                'start_date': datetime.datetime(2016, 1, 1)
-            }
-            dag = DAG(
-                dag_name,
-                default_args=default_args)
+            from airflow.operators.dummy import DummyOperator
+            from airflow.operators.subdag import SubDagOperator
 
-            # master:
+            dag_name = 'parent'
+            default_args = {'owner': 'owner1', 'start_date': datetime.datetime(2016, 1, 1)}
+            dag = DAG(dag_name, default_args=default_args)
+
+            # parent:
             #     A -> opSubDag_0
-            #          master.opsubdag_0:
+            #          parent.opsubdag_0:
             #              -> subdag_0.task
             #     A -> opSubDag_1
-            #          master.opsubdag_1:
+            #          parent.opsubdag_1:
             #              -> subdag_1.task
 
             with dag:
+
                 def subdag_0():
-                    subdag_0 = DAG('master.op_subdag_0', default_args=default_args)
+                    subdag_0 = DAG('parent.op_subdag_0', default_args=default_args)
                     DummyOperator(task_id='subdag_0.task', dag=subdag_0)
                     return subdag_0
 
                 def subdag_1():
-                    subdag_1 = DAG('master.op_subdag_1', default_args=default_args)
+                    subdag_1 = DAG('parent.op_subdag_1', default_args=default_args)
                     DummyOperator(task_id='subdag_1.task', dag=subdag_1)
                     return subdag_1
 
-                op_subdag_0 = SubDagOperator(
-                    task_id='op_subdag_0', dag=dag, subdag=subdag_0())
-                op_subdag_1 = SubDagOperator(
-                    task_id='op_subdag_1', dag=dag, subdag=subdag_1())
+                op_subdag_0 = SubDagOperator(task_id='op_subdag_0', dag=dag, subdag=subdag_0())
+                op_subdag_1 = SubDagOperator(task_id='op_subdag_1', dag=dag, subdag=subdag_1())
 
                 op_a = DummyOperator(task_id='A')
                 op_a.set_downstream(op_subdag_0)
@@ -371,7 +359,7 @@ class TestDagBag(unittest.TestCase):
 
         test_dag = standard_subdag()
         # sanity check to make sure DAG.subdag is still functioning properly
-        self.assertEqual(len(test_dag.subdags), 2)
+        assert len(test_dag.subdags) == 2
 
         # Perform processing dag
         dagbag, found_dags, _ = self.process_dag(standard_subdag)
@@ -385,76 +373,67 @@ class TestDagBag(unittest.TestCase):
             import datetime  # pylint: disable=redefined-outer-name,reimported
 
             from airflow.models import DAG
-            from airflow.operators.dummy_operator import DummyOperator
-            from airflow.operators.subdag_operator import SubDagOperator
-            dag_name = 'master'
-            default_args = {
-                'owner': 'owner1',
-                'start_date': datetime.datetime(2016, 1, 1)
-            }
-            dag = DAG(
-                dag_name,
-                default_args=default_args)
+            from airflow.operators.dummy import DummyOperator
+            from airflow.operators.subdag import SubDagOperator
 
-            # master:
+            dag_name = 'parent'
+            default_args = {'owner': 'owner1', 'start_date': datetime.datetime(2016, 1, 1)}
+            dag = DAG(dag_name, default_args=default_args)
+
+            # parent:
             #     A -> op_subdag_0
-            #          master.op_subdag_0:
+            #          parent.op_subdag_0:
             #              -> opSubDag_A
-            #                 master.op_subdag_0.opSubdag_A:
+            #                 parent.op_subdag_0.opSubdag_A:
             #                     -> subdag_a.task
             #              -> opSubdag_B
-            #                 master.op_subdag_0.opSubdag_B:
+            #                 parent.op_subdag_0.opSubdag_B:
             #                     -> subdag_b.task
             #     A -> op_subdag_1
-            #          master.op_subdag_1:
+            #          parent.op_subdag_1:
             #              -> opSubdag_C
-            #                 master.op_subdag_1.opSubdag_C:
+            #                 parent.op_subdag_1.opSubdag_C:
             #                     -> subdag_c.task
             #              -> opSubDag_D
-            #                 master.op_subdag_1.opSubdag_D:
+            #                 parent.op_subdag_1.opSubdag_D:
             #                     -> subdag_d.task
 
             with dag:
+
                 def subdag_a():
-                    subdag_a = DAG(
-                        'master.op_subdag_0.opSubdag_A', default_args=default_args)
+                    subdag_a = DAG('parent.op_subdag_0.opSubdag_A', default_args=default_args)
                     DummyOperator(task_id='subdag_a.task', dag=subdag_a)
                     return subdag_a
 
                 def subdag_b():
-                    subdag_b = DAG(
-                        'master.op_subdag_0.opSubdag_B', default_args=default_args)
+                    subdag_b = DAG('parent.op_subdag_0.opSubdag_B', default_args=default_args)
                     DummyOperator(task_id='subdag_b.task', dag=subdag_b)
                     return subdag_b
 
                 def subdag_c():
-                    subdag_c = DAG(
-                        'master.op_subdag_1.opSubdag_C', default_args=default_args)
+                    subdag_c = DAG('parent.op_subdag_1.opSubdag_C', default_args=default_args)
                     DummyOperator(task_id='subdag_c.task', dag=subdag_c)
                     return subdag_c
 
                 def subdag_d():
-                    subdag_d = DAG(
-                        'master.op_subdag_1.opSubdag_D', default_args=default_args)
+                    subdag_d = DAG('parent.op_subdag_1.opSubdag_D', default_args=default_args)
                     DummyOperator(task_id='subdag_d.task', dag=subdag_d)
                     return subdag_d
 
                 def subdag_0():
-                    subdag_0 = DAG('master.op_subdag_0', default_args=default_args)
+                    subdag_0 = DAG('parent.op_subdag_0', default_args=default_args)
                     SubDagOperator(task_id='opSubdag_A', dag=subdag_0, subdag=subdag_a())
                     SubDagOperator(task_id='opSubdag_B', dag=subdag_0, subdag=subdag_b())
                     return subdag_0
 
                 def subdag_1():
-                    subdag_1 = DAG('master.op_subdag_1', default_args=default_args)
+                    subdag_1 = DAG('parent.op_subdag_1', default_args=default_args)
                     SubDagOperator(task_id='opSubdag_C', dag=subdag_1, subdag=subdag_c())
                     SubDagOperator(task_id='opSubdag_D', dag=subdag_1, subdag=subdag_d())
                     return subdag_1
 
-                op_subdag_0 = SubDagOperator(
-                    task_id='op_subdag_0', dag=dag, subdag=subdag_0())
-                op_subdag_1 = SubDagOperator(
-                    task_id='op_subdag_1', dag=dag, subdag=subdag_1())
+                op_subdag_0 = SubDagOperator(task_id='op_subdag_0', dag=dag, subdag=subdag_0())
+                op_subdag_1 = SubDagOperator(task_id='op_subdag_1', dag=dag, subdag=subdag_1())
 
                 op_a = DummyOperator(task_id='A')
                 op_a.set_downstream(op_subdag_0)
@@ -464,7 +443,7 @@ class TestDagBag(unittest.TestCase):
 
         test_dag = nested_subdags()
         # sanity check to make sure DAG.subdag is still functioning properly
-        self.assertEqual(len(test_dag.subdags), 6)
+        assert len(test_dag.subdags) == 6
 
         # Perform processing dag
         dagbag, found_dags, _ = self.process_dag(nested_subdags)
@@ -484,15 +463,11 @@ class TestDagBag(unittest.TestCase):
             import datetime  # pylint: disable=redefined-outer-name,reimported
 
             from airflow.models import DAG
-            from airflow.operators.dummy_operator import DummyOperator
+            from airflow.operators.dummy import DummyOperator
+
             dag_name = 'cycle_dag'
-            default_args = {
-                'owner': 'owner1',
-                'start_date': datetime.datetime(2016, 1, 1)
-            }
-            dag = DAG(
-                dag_name,
-                default_args=default_args)
+            default_args = {'owner': 'owner1', 'start_date': datetime.datetime(2016, 1, 1)}
+            dag = DAG(dag_name, default_args=default_args)
 
             # A -> A
             with dag:
@@ -503,7 +478,7 @@ class TestDagBag(unittest.TestCase):
 
         test_dag = basic_cycle()
         # sanity check to make sure DAG.subdag is still functioning properly
-        self.assertEqual(len(test_dag.subdags), 0)
+        assert len(test_dag.subdags) == 0
 
         # Perform processing dag
         dagbag, found_dags, file_path = self.process_dag(basic_cycle)
@@ -511,23 +486,19 @@ class TestDagBag(unittest.TestCase):
         # #Validate correctness
         # None of the dags should be found
         self.validate_dags(test_dag, found_dags, dagbag, should_be_found=False)
-        self.assertIn(file_path, dagbag.import_errors)
+        assert file_path in dagbag.import_errors
 
         # Define Dag to load
         def nested_subdag_cycle():
             import datetime  # pylint: disable=redefined-outer-name,reimported
 
             from airflow.models import DAG
-            from airflow.operators.dummy_operator import DummyOperator
-            from airflow.operators.subdag_operator import SubDagOperator
+            from airflow.operators.dummy import DummyOperator
+            from airflow.operators.subdag import SubDagOperator
+
             dag_name = 'nested_cycle'
-            default_args = {
-                'owner': 'owner1',
-                'start_date': datetime.datetime(2016, 1, 1)
-            }
-            dag = DAG(
-                dag_name,
-                default_args=default_args)
+            default_args = {'owner': 'owner1', 'start_date': datetime.datetime(2016, 1, 1)}
+            dag = DAG(dag_name, default_args=default_args)
 
             # cycle:
             #     A -> op_subdag_0
@@ -548,30 +519,26 @@ class TestDagBag(unittest.TestCase):
             #                     -> subdag_d.task
 
             with dag:
+
                 def subdag_a():
-                    subdag_a = DAG(
-                        'nested_cycle.op_subdag_0.opSubdag_A', default_args=default_args)
+                    subdag_a = DAG('nested_cycle.op_subdag_0.opSubdag_A', default_args=default_args)
                     DummyOperator(task_id='subdag_a.task', dag=subdag_a)
                     return subdag_a
 
                 def subdag_b():
-                    subdag_b = DAG(
-                        'nested_cycle.op_subdag_0.opSubdag_B', default_args=default_args)
+                    subdag_b = DAG('nested_cycle.op_subdag_0.opSubdag_B', default_args=default_args)
                     DummyOperator(task_id='subdag_b.task', dag=subdag_b)
                     return subdag_b
 
                 def subdag_c():
-                    subdag_c = DAG(
-                        'nested_cycle.op_subdag_1.opSubdag_C', default_args=default_args)
-                    op_subdag_c_task = DummyOperator(
-                        task_id='subdag_c.task', dag=subdag_c)
+                    subdag_c = DAG('nested_cycle.op_subdag_1.opSubdag_C', default_args=default_args)
+                    op_subdag_c_task = DummyOperator(task_id='subdag_c.task', dag=subdag_c)
                     # introduce a loop in opSubdag_C
                     op_subdag_c_task.set_downstream(op_subdag_c_task)
                     return subdag_c
 
                 def subdag_d():
-                    subdag_d = DAG(
-                        'nested_cycle.op_subdag_1.opSubdag_D', default_args=default_args)
+                    subdag_d = DAG('nested_cycle.op_subdag_1.opSubdag_D', default_args=default_args)
                     DummyOperator(task_id='subdag_d.task', dag=subdag_d)
                     return subdag_d
 
@@ -587,10 +554,8 @@ class TestDagBag(unittest.TestCase):
                     SubDagOperator(task_id='opSubdag_D', dag=subdag_1, subdag=subdag_d())
                     return subdag_1
 
-                op_subdag_0 = SubDagOperator(
-                    task_id='op_subdag_0', dag=dag, subdag=subdag_0())
-                op_subdag_1 = SubDagOperator(
-                    task_id='op_subdag_1', dag=dag, subdag=subdag_1())
+                op_subdag_0 = SubDagOperator(task_id='op_subdag_0', dag=dag, subdag=subdag_0())
+                op_subdag_1 = SubDagOperator(task_id='op_subdag_1', dag=dag, subdag=subdag_1())
 
                 op_a = DummyOperator(task_id='A')
                 op_a.set_downstream(op_subdag_0)
@@ -600,7 +565,7 @@ class TestDagBag(unittest.TestCase):
 
         test_dag = nested_subdag_cycle()
         # sanity check to make sure DAG.subdag is still functioning properly
-        self.assertEqual(len(test_dag.subdags), 6)
+        assert len(test_dag.subdags) == 6
 
         # Perform processing dag
         dagbag, found_dags, file_path = self.process_dag(nested_subdag_cycle)
@@ -608,7 +573,7 @@ class TestDagBag(unittest.TestCase):
         # Validate correctness
         # None of the dags should be found
         self.validate_dags(test_dag, found_dags, dagbag, should_be_found=False)
-        self.assertIn(file_path, dagbag.import_errors)
+        assert file_path in dagbag.import_errors
 
     def test_process_file_with_none(self):
         """
@@ -616,7 +581,7 @@ class TestDagBag(unittest.TestCase):
         """
         dagbag = models.DagBag(dag_folder=self.empty_dir, include_examples=False)
 
-        self.assertEqual([], dagbag.process_file(None))
+        assert [] == dagbag.process_file(None)
 
     def test_deactivate_unknown_dags(self):
         """
@@ -634,14 +599,13 @@ class TestDagBag(unittest.TestCase):
         models.DAG.deactivate_unknown_dags(expected_active_dags)
 
         after_model = DagModel.get_dagmodel(dag_id)
-        self.assertTrue(model_before.is_active)
-        self.assertFalse(after_model.is_active)
+        assert model_before.is_active
+        assert not after_model.is_active
 
         # clean up
         with create_session() as session:
             session.query(DagModel).filter(DagModel.dag_id == 'test_deactivate_unknown_dags').delete()
 
-    @patch("airflow.models.dagbag.settings.STORE_SERIALIZED_DAGS", True)
     def test_serialized_dags_are_written_to_db_on_sync(self):
         """
         Test that when dagbag.sync_to_db is called the DAGs are Serialized and written to DB
@@ -649,19 +613,152 @@ class TestDagBag(unittest.TestCase):
         """
         with create_session() as session:
             serialized_dags_count = session.query(func.count(SerializedDagModel.dag_id)).scalar()
-            self.assertEqual(serialized_dags_count, 0)
+            assert serialized_dags_count == 0
 
             dagbag = DagBag(
                 dag_folder=os.path.join(TEST_DAGS_FOLDER, "test_example_bash_operator.py"),
-                include_examples=False)
+                include_examples=False,
+            )
             dagbag.sync_to_db()
 
-            self.assertFalse(dagbag.read_dags_from_db)
+            assert not dagbag.read_dags_from_db
 
             new_serialized_dags_count = session.query(func.count(SerializedDagModel.dag_id)).scalar()
-            self.assertEqual(new_serialized_dags_count, 1)
+            assert new_serialized_dags_count == 1
 
-    @patch("airflow.models.dagbag.settings.STORE_SERIALIZED_DAGS", True)
+    @patch("airflow.models.serialized_dag.SerializedDagModel.write_dag")
+    def test_serialized_dag_errors_are_import_errors(self, mock_serialize):
+        """
+        Test that errors serializing a DAG are recorded as import_errors in the DB
+        """
+        mock_serialize.side_effect = SerializationError
+
+        with create_session() as session:
+            path = os.path.join(TEST_DAGS_FOLDER, "test_example_bash_operator.py")
+
+            dagbag = DagBag(
+                dag_folder=path,
+                include_examples=False,
+            )
+            assert dagbag.import_errors == {}
+
+            dagbag.sync_to_db(session=session)
+
+            assert path in dagbag.import_errors
+            err = dagbag.import_errors[path]
+            assert "SerializationError" in err
+            session.rollback()
+
+    @patch("airflow.models.dagbag.DagBag.collect_dags")
+    @patch("airflow.models.serialized_dag.SerializedDagModel.write_dag")
+    @patch("airflow.models.dag.DAG.bulk_write_to_db")
+    def test_sync_to_db_is_retried(self, mock_bulk_write_to_db, mock_s10n_write_dag, mock_collect_dags):
+        """Test that dagbag.sync_to_db is retried on OperationalError"""
+
+        dagbag = DagBag("/dev/null")
+        mock_dag = mock.MagicMock(spec=models.DAG)
+        mock_dag.is_subdag = False
+        dagbag.dags['mock_dag'] = mock_dag
+
+        op_error = OperationalError(statement=mock.ANY, params=mock.ANY, orig=mock.ANY)
+
+        # Mock error for the first 2 tries and a successful third try
+        side_effect = [op_error, op_error, mock.ANY]
+
+        mock_bulk_write_to_db.side_effect = side_effect
+
+        mock_session = mock.MagicMock()
+        dagbag.sync_to_db(session=mock_session)
+
+        # Test that 3 attempts were made to run 'DAG.bulk_write_to_db' successfully
+        mock_bulk_write_to_db.assert_has_calls(
+            [
+                mock.call(mock.ANY, session=mock.ANY),
+                mock.call(mock.ANY, session=mock.ANY),
+                mock.call(mock.ANY, session=mock.ANY),
+            ]
+        )
+        # Assert that rollback is called twice (i.e. whenever OperationalError occurs)
+        mock_session.rollback.assert_has_calls([mock.call(), mock.call()])
+        # Check that 'SerializedDagModel.write_dag' is also called
+        # Only called once since the other two times the 'DAG.bulk_write_to_db' error'd
+        # and the session was roll-backed before even reaching 'SerializedDagModel.write_dag'
+        mock_s10n_write_dag.assert_has_calls(
+            [
+                mock.call(mock_dag, min_update_interval=mock.ANY, session=mock_session),
+            ]
+        )
+
+    @patch("airflow.models.dagbag.settings.MIN_SERIALIZED_DAG_UPDATE_INTERVAL", 5)
+    @freeze_time(tz.datetime(2020, 1, 5, 0, 0, 0), as_kwarg="frozen_time")
+    def test_sync_to_db_syncs_dag_specific_perms_on_update(self, frozen_time):
+        """
+        Test that dagbag.sync_to_db will sync DAG specific permissions when a DAG is
+        new or updated
+        """
+        with create_session() as session:
+            dagbag = DagBag(
+                dag_folder=os.path.join(TEST_DAGS_FOLDER, "test_example_bash_operator.py"),
+                include_examples=False,
+            )
+            mock_sync_perm_for_dag = mock.MagicMock()
+            dagbag._sync_perm_for_dag = mock_sync_perm_for_dag
+
+            def _sync_to_db():
+                mock_sync_perm_for_dag.reset_mock()
+                frozen_time.tick(20)
+                dagbag.sync_to_db(session=session)
+
+            dag = dagbag.dags["test_example_bash_operator"]
+            _sync_to_db()
+            mock_sync_perm_for_dag.assert_called_once_with(dag, session=session)
+
+            # DAG isn't updated
+            _sync_to_db()
+            mock_sync_perm_for_dag.assert_not_called()
+
+            # DAG is updated
+            dag.tags = ["new_tag"]
+            _sync_to_db()
+            mock_sync_perm_for_dag.assert_called_once_with(dag, session=session)
+
+    @patch("airflow.www.security.ApplessAirflowSecurityManager")
+    def test_sync_perm_for_dag(self, mock_security_manager):
+        """
+        Test that dagbag._sync_perm_for_dag will call ApplessAirflowSecurityManager.sync_perm_for_dag
+        when DAG specific perm views don't exist already or the DAG has access_control set.
+        """
+        delete_dag_specific_permissions()
+        with create_session() as session:
+            security_manager = ApplessAirflowSecurityManager(session)
+            mock_sync_perm_for_dag = mock_security_manager.return_value.sync_perm_for_dag
+            mock_sync_perm_for_dag.side_effect = security_manager.sync_perm_for_dag
+
+            dagbag = DagBag(
+                dag_folder=os.path.join(TEST_DAGS_FOLDER, "test_example_bash_operator.py"),
+                include_examples=False,
+            )
+            dag = dagbag.dags["test_example_bash_operator"]
+
+            def _sync_perms():
+                mock_sync_perm_for_dag.reset_mock()
+                dagbag._sync_perm_for_dag(dag, session=session)
+
+            # permviews dont exist
+            _sync_perms()
+            mock_sync_perm_for_dag.assert_called_once_with("test_example_bash_operator", None)
+
+            # permviews now exist
+            _sync_perms()
+            mock_sync_perm_for_dag.assert_not_called()
+
+            # Always sync if we have access_control
+            dag.access_control = {"Public": {"can_read"}}
+            _sync_perms()
+            mock_sync_perm_for_dag.assert_called_once_with(
+                "test_example_bash_operator", {"Public": {"can_read"}}
+            )
+
     @patch("airflow.models.dagbag.settings.MIN_SERIALIZED_DAG_UPDATE_INTERVAL", 5)
     @patch("airflow.models.dagbag.settings.MIN_SERIALIZED_DAG_FETCH_INTERVAL", 5)
     def test_get_dag_with_dag_serialization(self):
@@ -677,14 +774,14 @@ class TestDagBag(unittest.TestCase):
             dag_bag = DagBag(read_dags_from_db=True)
             ser_dag_1 = dag_bag.get_dag("example_bash_operator")
             ser_dag_1_update_time = dag_bag.dags_last_fetched["example_bash_operator"]
-            self.assertEqual(example_bash_op_dag.tags, ser_dag_1.tags)
-            self.assertEqual(ser_dag_1_update_time, tz.datetime(2020, 1, 5, 0, 0, 0))
+            assert example_bash_op_dag.tags == ser_dag_1.tags
+            assert ser_dag_1_update_time == tz.datetime(2020, 1, 5, 0, 0, 0)
 
         # Check that if min_serialized_dag_fetch_interval has not passed we do not fetch the DAG
         # from DB
         with freeze_time(tz.datetime(2020, 1, 5, 0, 0, 4)):
             with assert_queries_count(0):
-                self.assertEqual(dag_bag.get_dag("example_bash_operator").tags, ["example"])
+                assert dag_bag.get_dag("example_bash_operator").tags == ["example", "example2"]
 
         # Make a change in the DAG and write Serialized DAG to the DB
         with freeze_time(tz.datetime(2020, 1, 5, 0, 0, 6)):
@@ -698,18 +795,39 @@ class TestDagBag(unittest.TestCase):
                 updated_ser_dag_1 = dag_bag.get_dag("example_bash_operator")
                 updated_ser_dag_1_update_time = dag_bag.dags_last_fetched["example_bash_operator"]
 
-        self.assertCountEqual(updated_ser_dag_1.tags, ["example", "new_tag"])
-        self.assertGreater(updated_ser_dag_1_update_time, ser_dag_1_update_time)
+        assert set(updated_ser_dag_1.tags) == {"example", "example2", "new_tag"}
+        assert updated_ser_dag_1_update_time > ser_dag_1_update_time
 
-    @patch("airflow.settings.policy", cluster_policies.cluster_policy)
-    def test_cluster_policy_violation(self):
-        """test that file processing results in import error when task does not
+    def test_collect_dags_from_db(self):
+        """DAGs are collected from Database"""
+        example_dags_folder = airflow.example_dags.__path__[0]
+        dagbag = DagBag(example_dags_folder)
+
+        example_dags = dagbag.dags
+        for dag in example_dags.values():
+            SerializedDagModel.write_dag(dag)
+
+        new_dagbag = DagBag(read_dags_from_db=True)
+        assert len(new_dagbag.dags) == 0
+        new_dagbag.collect_dags_from_db()
+        new_dags = new_dagbag.dags
+        assert len(example_dags) == len(new_dags)
+        for dag_id, dag in example_dags.items():
+            serialized_dag = new_dags[dag_id]
+
+            assert serialized_dag.dag_id == dag.dag_id
+            assert set(serialized_dag.task_dict) == set(dag.task_dict)
+
+    @patch("airflow.settings.task_policy", cluster_policies.cluster_policy)
+    def test_task_cluster_policy_violation(self):
+        """
+        test that file processing results in import error when task does not
         obey cluster policy.
         """
         dag_file = os.path.join(TEST_DAGS_FOLDER, "test_missing_owner.py")
 
-        dagbag = DagBag(dag_folder=dag_file)
-        self.assertEqual(set(), set(dagbag.dag_ids))
+        dagbag = DagBag(dag_folder=dag_file, include_smart_sensor=False, include_examples=False)
+        assert set() == set(dagbag.dag_ids)
         expected_import_errors = {
             dag_file: (
                 f"""DAG policy violation (DAG ID: test_missing_owner, Path: {dag_file}):\n"""
@@ -717,17 +835,25 @@ class TestDagBag(unittest.TestCase):
                 """ * Task must have non-None non-default owner. Current value: airflow"""
             )
         }
-        self.assertEqual(expected_import_errors, dagbag.import_errors)
+        assert expected_import_errors == dagbag.import_errors
 
-    @patch("airflow.settings.policy", cluster_policies.cluster_policy)
-    def test_cluster_policy_obeyed(self):
-        """test that dag successfully imported without import errors when tasks
+    @patch("airflow.settings.task_policy", cluster_policies.cluster_policy)
+    def test_task_cluster_policy_obeyed(self):
+        """
+        test that dag successfully imported without import errors when tasks
         obey cluster policy.
         """
-        dag_file = os.path.join(TEST_DAGS_FOLDER,
-                                "test_with_non_default_owner.py")
+        dag_file = os.path.join(TEST_DAGS_FOLDER, "test_with_non_default_owner.py")
 
-        dagbag = DagBag(dag_folder=dag_file)
-        self.assertEqual({"test_with_non_default_owner"}, set(dagbag.dag_ids))
+        dagbag = DagBag(dag_folder=dag_file, include_examples=False, include_smart_sensor=False)
+        assert {"test_with_non_default_owner"} == set(dagbag.dag_ids)
 
-        self.assertEqual({}, dagbag.import_errors)
+        assert {} == dagbag.import_errors
+
+    @patch("airflow.settings.dag_policy", cluster_policies.dag_policy)
+    def test_dag_cluster_policy_obeyed(self):
+        dag_file = os.path.join(TEST_DAGS_FOLDER, "test_dag_with_no_tags.py")
+
+        dagbag = DagBag(dag_folder=dag_file, include_examples=False, include_smart_sensor=False)
+        assert len(dagbag.dag_ids) == 0
+        assert "has no tags" in dagbag.import_errors[dag_file]

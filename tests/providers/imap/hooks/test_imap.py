@@ -20,6 +20,8 @@ import imaplib
 import unittest
 from unittest.mock import Mock, mock_open, patch
 
+import pytest
+
 from airflow.exceptions import AirflowException
 from airflow.models import Connection
 from airflow.providers.imap.hooks.imap import ImapHook
@@ -38,10 +40,11 @@ def _create_fake_imap(mock_imaplib, with_mail=False, attachment_name='test1.csv'
     if with_mail:
         mock_conn.select.return_value = ('OK', [])
         mock_conn.search.return_value = ('OK', [b'1'])
-        mail_string = \
-            'Content-Type: multipart/mixed; boundary=123\r\n--123\r\n' \
-            'Content-Disposition: attachment; filename="{}";' \
+        mail_string = (
+            'Content-Type: multipart/mixed; boundary=123\r\n--123\r\n'
+            'Content-Disposition: attachment; filename="{}";'
             'Content-Transfer-Encoding: base64\r\nSWQsTmFtZQoxLEZlbGl4\r\n--123--'.format(attachment_name)
+        )
         mock_conn.fetch.return_value = ('OK', [(b'', mail_string.encode('utf-8'))])
         mock_conn.close.return_value = ('OK', [])
 
@@ -58,7 +61,7 @@ class TestImapHook(unittest.TestCase):
                 conn_type='imap',
                 host='imap_server_address',
                 login='imap_user',
-                password='imap_password'
+                password='imap_password',
             )
         )
 
@@ -80,7 +83,7 @@ class TestImapHook(unittest.TestCase):
         with ImapHook() as imap_hook:
             has_attachment_in_inbox = imap_hook.has_mail_attachment('test1.csv')
 
-        self.assertTrue(has_attachment_in_inbox)
+        assert has_attachment_in_inbox
 
     @patch(imaplib_string)
     def test_has_mail_attachment_not_found(self, mock_imaplib):
@@ -89,31 +92,25 @@ class TestImapHook(unittest.TestCase):
         with ImapHook() as imap_hook:
             has_attachment_in_inbox = imap_hook.has_mail_attachment('test1.txt')
 
-        self.assertFalse(has_attachment_in_inbox)
+        assert not has_attachment_in_inbox
 
     @patch(imaplib_string)
     def test_has_mail_attachment_with_regex_found(self, mock_imaplib):
         _create_fake_imap(mock_imaplib, with_mail=True)
 
         with ImapHook() as imap_hook:
-            has_attachment_in_inbox = imap_hook.has_mail_attachment(
-                name=r'test(\d+).csv',
-                check_regex=True
-            )
+            has_attachment_in_inbox = imap_hook.has_mail_attachment(name=r'test(\d+).csv', check_regex=True)
 
-        self.assertTrue(has_attachment_in_inbox)
+        assert has_attachment_in_inbox
 
     @patch(imaplib_string)
     def test_has_mail_attachment_with_regex_not_found(self, mock_imaplib):
         _create_fake_imap(mock_imaplib, with_mail=True)
 
         with ImapHook() as imap_hook:
-            has_attachment_in_inbox = imap_hook.has_mail_attachment(
-                name=r'test_(\d+).csv',
-                check_regex=True
-            )
+            has_attachment_in_inbox = imap_hook.has_mail_attachment(name=r'test_(\d+).csv', check_regex=True)
 
-        self.assertFalse(has_attachment_in_inbox)
+        assert not has_attachment_in_inbox
 
     @patch(imaplib_string)
     def test_has_mail_attachment_with_mail_filter(self, mock_imaplib):
@@ -121,10 +118,7 @@ class TestImapHook(unittest.TestCase):
         mail_filter = '(SINCE "01-Jan-2019")'
 
         with ImapHook() as imap_hook:
-            imap_hook.has_mail_attachment(
-                name='test1.csv',
-                mail_filter=mail_filter
-            )
+            imap_hook.has_mail_attachment(name='test1.csv', mail_filter=mail_filter)
 
         mock_imaplib.IMAP4_SSL.return_value.search.assert_called_once_with(None, mail_filter)
 
@@ -135,14 +129,15 @@ class TestImapHook(unittest.TestCase):
         with ImapHook() as imap_hook:
             attachments_in_inbox = imap_hook.retrieve_mail_attachments('test1.csv')
 
-        self.assertEqual(attachments_in_inbox, [('test1.csv', b'SWQsTmFtZQoxLEZlbGl4')])
+        assert attachments_in_inbox == [('test1.csv', b'SWQsTmFtZQoxLEZlbGl4')]
 
     @patch(imaplib_string)
     def test_retrieve_mail_attachments_not_found(self, mock_imaplib):
         _create_fake_imap(mock_imaplib, with_mail=True)
 
         with ImapHook() as imap_hook:
-            self.assertRaises(AirflowException, imap_hook.retrieve_mail_attachments, 'test1.txt')
+            with pytest.raises(AirflowException):
+                imap_hook.retrieve_mail_attachments('test1.txt')
 
     @patch(imaplib_string)
     def test_retrieve_mail_attachments_with_regex_found(self, mock_imaplib):
@@ -150,33 +145,30 @@ class TestImapHook(unittest.TestCase):
 
         with ImapHook() as imap_hook:
             attachments_in_inbox = imap_hook.retrieve_mail_attachments(
-                name=r'test(\d+).csv',
-                check_regex=True
+                name=r'test(\d+).csv', check_regex=True
             )
 
-        self.assertEqual(attachments_in_inbox, [('test1.csv', b'SWQsTmFtZQoxLEZlbGl4')])
+        assert attachments_in_inbox == [('test1.csv', b'SWQsTmFtZQoxLEZlbGl4')]
 
     @patch(imaplib_string)
     def test_retrieve_mail_attachments_with_regex_not_found(self, mock_imaplib):
         _create_fake_imap(mock_imaplib, with_mail=True)
 
         with ImapHook() as imap_hook:
-            self.assertRaises(AirflowException,
-                              imap_hook.retrieve_mail_attachments,
-                              name=r'test_(\d+).csv',
-                              check_regex=True)
+            with pytest.raises(AirflowException):
+                imap_hook.retrieve_mail_attachments(
+                    name=r'test_(\d+).csv',
+                    check_regex=True,
+                )
 
     @patch(imaplib_string)
     def test_retrieve_mail_attachments_latest_only(self, mock_imaplib):
         _create_fake_imap(mock_imaplib, with_mail=True)
 
         with ImapHook() as imap_hook:
-            attachments_in_inbox = imap_hook.retrieve_mail_attachments(
-                name='test1.csv',
-                latest_only=True
-            )
+            attachments_in_inbox = imap_hook.retrieve_mail_attachments(name='test1.csv', latest_only=True)
 
-        self.assertEqual(attachments_in_inbox, [('test1.csv', b'SWQsTmFtZQoxLEZlbGl4')])
+        assert attachments_in_inbox == [('test1.csv', b'SWQsTmFtZQoxLEZlbGl4')]
 
     @patch(imaplib_string)
     def test_retrieve_mail_attachments_with_mail_filter(self, mock_imaplib):
@@ -184,10 +176,7 @@ class TestImapHook(unittest.TestCase):
         mail_filter = '(SINCE "01-Jan-2019")'
 
         with ImapHook() as imap_hook:
-            imap_hook.retrieve_mail_attachments(
-                name='test1.csv',
-                mail_filter=mail_filter
-            )
+            imap_hook.retrieve_mail_attachments(name='test1.csv', mail_filter=mail_filter)
 
         mock_imaplib.IMAP4_SSL.return_value.search.assert_called_once_with(None, mail_filter)
 
@@ -208,8 +197,8 @@ class TestImapHook(unittest.TestCase):
         _create_fake_imap(mock_imaplib, with_mail=True)
 
         with ImapHook() as imap_hook:
-            self.assertRaises(AirflowException,
-                              imap_hook.download_mail_attachments, 'test1.txt', 'test_directory')
+            with pytest.raises(AirflowException):
+                imap_hook.download_mail_attachments('test1.txt', 'test_directory')
 
         mock_open_method.assert_not_called()
         mock_open_method.return_value.write.assert_not_called()
@@ -221,9 +210,7 @@ class TestImapHook(unittest.TestCase):
 
         with ImapHook() as imap_hook:
             imap_hook.download_mail_attachments(
-                name=r'test(\d+).csv',
-                local_output_directory='test_directory',
-                check_regex=True
+                name=r'test(\d+).csv', local_output_directory='test_directory', check_regex=True
             )
 
         mock_open_method.assert_called_once_with('test_directory/test1.csv', 'wb')
@@ -235,11 +222,12 @@ class TestImapHook(unittest.TestCase):
         _create_fake_imap(mock_imaplib, with_mail=True)
 
         with ImapHook() as imap_hook:
-            self.assertRaises(AirflowException,
-                              imap_hook.download_mail_attachments,
-                              name=r'test_(\d+).csv',
-                              local_output_directory='test_directory',
-                              check_regex=True)
+            with pytest.raises(AirflowException):
+                imap_hook.download_mail_attachments(
+                    name=r'test_(\d+).csv',
+                    local_output_directory='test_directory',
+                    check_regex=True,
+                )
 
         mock_open_method.assert_not_called()
         mock_open_method.return_value.write.assert_not_called()
@@ -251,9 +239,7 @@ class TestImapHook(unittest.TestCase):
 
         with ImapHook() as imap_hook:
             imap_hook.download_mail_attachments(
-                name='test1.csv',
-                local_output_directory='test_directory',
-                latest_only=True
+                name='test1.csv', local_output_directory='test_directory', latest_only=True
             )
 
         mock_open_method.assert_called_once_with('test_directory/test1.csv', 'wb')
@@ -265,10 +251,7 @@ class TestImapHook(unittest.TestCase):
         _create_fake_imap(mock_imaplib, with_mail=True, attachment_name='../test1.csv')
 
         with ImapHook() as imap_hook:
-            imap_hook.download_mail_attachments(
-                name='../test1.csv',
-                local_output_directory='test_directory'
-            )
+            imap_hook.download_mail_attachments(name='../test1.csv', local_output_directory='test_directory')
 
         mock_open_method.assert_not_called()
         mock_open_method.return_value.write.assert_not_called()
@@ -280,10 +263,7 @@ class TestImapHook(unittest.TestCase):
         _create_fake_imap(mock_imaplib, with_mail=True, attachment_name='symlink')
 
         with ImapHook() as imap_hook:
-            imap_hook.download_mail_attachments(
-                name='symlink',
-                local_output_directory='test_directory'
-            )
+            imap_hook.download_mail_attachments(name='symlink', local_output_directory='test_directory')
 
         assert mock_is_symlink.call_count == 1
         mock_open_method.assert_not_called()
@@ -297,9 +277,7 @@ class TestImapHook(unittest.TestCase):
 
         with ImapHook() as imap_hook:
             imap_hook.download_mail_attachments(
-                name='test1.csv',
-                local_output_directory='test_directory',
-                mail_filter=mail_filter
+                name='test1.csv', local_output_directory='test_directory', mail_filter=mail_filter
             )
 
         mock_imaplib.IMAP4_SSL.return_value.search.assert_called_once_with(None, mail_filter)

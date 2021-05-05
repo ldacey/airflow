@@ -15,7 +15,10 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""This module is deprecated. Please use `airflow.providers.microsoft.azure.operators.wasb_delete_blob`."""
+"""
+This module is deprecated.
+Please use :mod:`airflow.providers.microsoft.azure.operators.wasb_delete_blob`.
+"""
 
 import warnings
 
@@ -24,5 +27,6 @@ from airflow.providers.microsoft.azure.operators.wasb_delete_blob import WasbDel
 
 warnings.warn(
     "This module is deprecated. Please use `airflow.providers.microsoft.azure.operators.wasb_delete_blob`.",
-    DeprecationWarning, stacklevel=2
+    DeprecationWarning,
+    stacklevel=2,
 )

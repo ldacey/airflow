@@ -15,7 +15,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""This module is deprecated. Please use `airflow.providers.apache.druid.operators.druid`."""
+"""This module is deprecated. Please use :mod:`airflow.providers.apache.druid.operators.druid`."""
 
 import warnings
 
@@ -24,5 +24,6 @@ from airflow.providers.apache.druid.operators.druid import DruidOperator  # noqa
 
 warnings.warn(
     "This module is deprecated. Please use `airflow.providers.apache.druid.operators.druid`.",
-    DeprecationWarning, stacklevel=2
+    DeprecationWarning,
+    stacklevel=2,
 )

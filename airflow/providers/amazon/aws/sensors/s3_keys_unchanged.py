@@ -19,11 +19,14 @@ import os
 from datetime import datetime
 from typing import Optional, Set, Union
 
-from cached_property import cached_property
+try:
+    from functools import cached_property
+except ImportError:
+    from cached_property import cached_property
 
 from airflow.exceptions import AirflowException
 from airflow.providers.amazon.aws.hooks.s3 import S3Hook
-from airflow.sensors.base_sensor_operator import BaseSensorOperator, poke_mode_only
+from airflow.sensors.base import BaseSensorOperator, poke_mode_only
 from airflow.utils.decorators import apply_defaults
 
 
@@ -72,20 +75,23 @@ class S3KeysUnchangedSensor(BaseSensorOperator):
     template_fields = ('bucket_name', 'prefix')
 
     @apply_defaults
-    def __init__(self, *,
-                 bucket_name: str,
-                 prefix: str,
-                 aws_conn_id: str = 'aws_default',
-                 verify: Optional[Union[bool, str]] = None,
-                 inactivity_period: float = 60 * 60,
-                 min_objects: int = 1,
-                 previous_objects: Optional[Set[str]] = None,
-                 allow_delete: bool = True,
-                 **kwargs) -> None:
+    def __init__(
+        self,
+        *,
+        bucket_name: str,
+        prefix: str,
+        aws_conn_id: str = 'aws_default',
+        verify: Optional[Union[bool, str]] = None,
+        inactivity_period: float = 60 * 60,
+        min_objects: int = 1,
+        previous_objects: Optional[Set[str]] = None,
+        allow_delete: bool = True,
+        **kwargs,
+    ) -> None:
 
         super().__init__(**kwargs)
 
-        self.bucket = bucket_name
+        self.bucket_name = bucket_name
         self.prefix = prefix
         if inactivity_period < 0:
             raise ValueError("inactivity_period must be non-negative")
@@ -100,9 +106,7 @@ class S3KeysUnchangedSensor(BaseSensorOperator):
 
     @cached_property
     def hook(self):
-        """
-        Returns S3Hook.
-        """
+        """Returns S3Hook."""
         return S3Hook(aws_conn_id=self.aws_conn_id, verify=self.verify)
 
     def is_keys_unchanged(self, current_objects: Set[str]) -> bool:
@@ -117,8 +121,10 @@ class S3KeysUnchangedSensor(BaseSensorOperator):
         if current_objects > self.previous_objects:
             # When new objects arrived, reset the inactivity_seconds
             # and update previous_objects for the next poke.
-            self.log.info("New objects found at %s, resetting last_activity_time.",
-                          os.path.join(self.bucket, self.prefix))
+            self.log.info(
+                "New objects found at %s, resetting last_activity_time.",
+                os.path.join(self.bucket_name, self.prefix),
+            )
             self.log.debug("New objects: %s", current_objects - self.previous_objects)
             self.last_activity_time = datetime.now()
             self.inactivity_seconds = 0
@@ -131,12 +137,17 @@ class S3KeysUnchangedSensor(BaseSensorOperator):
                 deleted_objects = self.previous_objects - current_objects
                 self.previous_objects = current_objects
                 self.last_activity_time = datetime.now()
-                self.log.info("Objects were deleted during the last poke interval. Updating the "
-                              "file counter and resetting last_activity_time:\n%s", deleted_objects)
+                self.log.info(
+                    "Objects were deleted during the last poke interval. Updating the "
+                    "file counter and resetting last_activity_time:\n%s",
+                    deleted_objects,
+                )
                 return False
 
-            raise AirflowException("Illegal behavior: objects were deleted in %s between pokes."
-                                   % os.path.join(self.bucket, self.prefix))
+            raise AirflowException(
+                "Illegal behavior: objects were deleted in %s between pokes."
+                % os.path.join(self.bucket_name, self.prefix)
+            )
 
         if self.last_activity_time:
             self.inactivity_seconds = int((datetime.now() - self.last_activity_time).total_seconds())
@@ -146,12 +157,16 @@ class S3KeysUnchangedSensor(BaseSensorOperator):
             self.inactivity_seconds = 0
 
         if self.inactivity_seconds >= self.inactivity_period:
-            path = os.path.join(self.bucket, self.prefix)
+            path = os.path.join(self.bucket_name, self.prefix)
 
             if current_num_objects >= self.min_objects:
-                self.log.info("SUCCESS: \nSensor found %s objects at %s.\n"
-                              "Waited at least %s seconds, with no new objects uploaded.",
-                              current_num_objects, path, self.inactivity_period)
+                self.log.info(
+                    "SUCCESS: \nSensor found %s objects at %s.\n"
+                    "Waited at least %s seconds, with no new objects uploaded.",
+                    current_num_objects,
+                    path,
+                    self.inactivity_period,
+                )
                 return True
 
             self.log.error("FAILURE: Inactivity Period passed, not enough objects found in %s", path)
@@ -160,4 +175,4 @@ class S3KeysUnchangedSensor(BaseSensorOperator):
         return False
 
     def poke(self, context):
-        return self.is_keys_unchanged(set(self.hook.list_keys(self.bucket, prefix=self.prefix)))
+        return self.is_keys_unchanged(set(self.hook.list_keys(self.bucket_name, prefix=self.prefix)))

@@ -31,12 +31,8 @@ DEFAULT_DATE = timezone.datetime(2017, 1, 1)
 
 
 class TestRedisPubSubSensor(unittest.TestCase):
-
     def setUp(self):
-        args = {
-            'owner': 'airflow',
-            'start_date': DEFAULT_DATE
-        }
+        args = {'owner': 'airflow', 'start_date': DEFAULT_DATE}
 
         self.dag = DAG('test_dag_id', default_args=args)
 
@@ -45,48 +41,46 @@ class TestRedisPubSubSensor(unittest.TestCase):
     @patch('airflow.providers.redis.hooks.redis.RedisHook.get_conn')
     def test_poke_mock_true(self, mock_redis_conn):
         sensor = RedisPubSubSensor(
-            task_id='test_task',
-            dag=self.dag,
-            channels='test',
-            redis_conn_id='redis_default'
+            task_id='test_task', dag=self.dag, channels='test', redis_conn_id='redis_default'
         )
 
-        mock_redis_conn().pubsub().get_message.return_value = \
-            {'type': 'message', 'channel': b'test', 'data': b'd1'}
+        mock_redis_conn().pubsub().get_message.return_value = {
+            'type': 'message',
+            'channel': b'test',
+            'data': b'd1',
+        }
 
         result = sensor.poke(self.mock_context)
-        self.assertTrue(result)
+        assert result
 
-        context_calls = [call.xcom_push(key='message',
-                                        value={'type': 'message', 'channel': b'test', 'data': b'd1'})]
+        context_calls = [
+            call.xcom_push(key='message', value={'type': 'message', 'channel': b'test', 'data': b'd1'})
+        ]
 
-        self.assertTrue(self.mock_context['ti'].method_calls == context_calls, "context call  should be same")
+        assert self.mock_context['ti'].method_calls == context_calls, "context call  should be same"
 
     @patch('airflow.providers.redis.hooks.redis.RedisHook.get_conn')
     def test_poke_mock_false(self, mock_redis_conn):
         sensor = RedisPubSubSensor(
-            task_id='test_task',
-            dag=self.dag,
-            channels='test',
-            redis_conn_id='redis_default'
+            task_id='test_task', dag=self.dag, channels='test', redis_conn_id='redis_default'
         )
 
-        mock_redis_conn().pubsub().get_message.return_value = \
-            {'type': 'subscribe', 'channel': b'test', 'data': b'd1'}
+        mock_redis_conn().pubsub().get_message.return_value = {
+            'type': 'subscribe',
+            'channel': b'test',
+            'data': b'd1',
+        }
 
         result = sensor.poke(self.mock_context)
-        self.assertFalse(result)
+        assert not result
 
         context_calls = []
-        self.assertTrue(self.mock_context['ti'].method_calls == context_calls, "context calls should be same")
+        assert self.mock_context['ti'].method_calls == context_calls, "context calls should be same"
 
     @pytest.mark.integration("redis")
     def test_poke_true(self):
         sensor = RedisPubSubSensor(
-            task_id='test_task',
-            dag=self.dag,
-            channels='test',
-            redis_conn_id='redis_default'
+            task_id='test_task', dag=self.dag, channels='test', redis_conn_id='redis_default'
         )
 
         hook = RedisHook(redis_conn_id='redis_default')
@@ -94,29 +88,28 @@ class TestRedisPubSubSensor(unittest.TestCase):
         redis.publish('test', 'message')
 
         result = sensor.poke(self.mock_context)
-        self.assertFalse(result)
+        assert not result
         result = sensor.poke(self.mock_context)
-        self.assertTrue(result)
+        assert result
         context_calls = [
             call.xcom_push(
                 key='message',
-                value={'type': 'message', 'pattern': None, 'channel': b'test', 'data': b'message'})]
-        self.assertTrue(self.mock_context['ti'].method_calls == context_calls, "context calls should be same")
+                value={'type': 'message', 'pattern': None, 'channel': b'test', 'data': b'message'},
+            )
+        ]
+        assert self.mock_context['ti'].method_calls == context_calls, "context calls should be same"
         result = sensor.poke(self.mock_context)
-        self.assertFalse(result)
+        assert not result
 
     @pytest.mark.integration("redis")
     def test_poke_false(self):
         sensor = RedisPubSubSensor(
-            task_id='test_task',
-            dag=self.dag,
-            channels='test',
-            redis_conn_id='redis_default'
+            task_id='test_task', dag=self.dag, channels='test', redis_conn_id='redis_default'
         )
 
         result = sensor.poke(self.mock_context)
-        self.assertFalse(result)
-        self.assertTrue(self.mock_context['ti'].method_calls == [], "context calls should be same")
+        assert not result
+        assert self.mock_context['ti'].method_calls == [], "context calls should be same"
         result = sensor.poke(self.mock_context)
-        self.assertFalse(result)
-        self.assertTrue(self.mock_context['ti'].method_calls == [], "context calls should be same")
+        assert not result
+        assert self.mock_context['ti'].method_calls == [], "context calls should be same"

@@ -15,9 +15,9 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""This module is deprecated.
-
-Please use `airflow.providers.oracle.transfers.oracle_to_oracle`.
+"""
+This module is deprecated.
+Please use :mod:`airflow.providers.oracle.transfers.oracle_to_oracle`.
 """
 
 import warnings
@@ -27,7 +27,8 @@ from airflow.providers.oracle.transfers.oracle_to_oracle import OracleToOracleOp
 
 warnings.warn(
     "This module is deprecated. Please use `airflow.providers.oracle.transfers.oracle_to_oracle`.",
-    DeprecationWarning, stacklevel=2
+    DeprecationWarning,
+    stacklevel=2,
 )
 
 
@@ -43,6 +44,7 @@ class OracleToOracleTransfer(OracleToOracleOperator):
             """This class is deprecated.
             Please use
             `airflow.providers.oracle.transfers.oracle_to_oracle.OracleToOracleOperator`.""",
-            DeprecationWarning, stacklevel=3
+            DeprecationWarning,
+            stacklevel=3,
         )
         super().__init__(*args, **kwargs)

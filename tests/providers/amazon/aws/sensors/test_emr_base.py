@@ -18,6 +18,8 @@
 
 import unittest
 
+import pytest
+
 from airflow.exceptions import AirflowException
 from airflow.providers.amazon.aws.sensors.emr_base import EmrBaseSensor
 
@@ -51,8 +53,8 @@ class EmrBaseSensorSubclass(EmrBaseSensor):
         change_reason = response['SomeKey'].get('StateChangeReason')
         if change_reason:
             return 'for code: {} with message {}'.format(
-                change_reason.get('Code', EMPTY_CODE),
-                change_reason.get('Message', 'Unknown'))
+                change_reason.get('Code', EMPTY_CODE), change_reason.get('Message', 'Unknown')
+            )
         return None
 
 
@@ -64,7 +66,7 @@ class TestEmrBaseSensor(unittest.TestCase):
         )
         operator.response = {
             'SomeKey': {'State': TARGET_STATE},
-            'ResponseMetadata': {'HTTPStatusCode': GOOD_HTTP_STATUS}
+            'ResponseMetadata': {'HTTPStatusCode': GOOD_HTTP_STATUS},
         }
 
         operator.execute(None)
@@ -76,10 +78,10 @@ class TestEmrBaseSensor(unittest.TestCase):
         )
         operator.response = {
             'SomeKey': {'State': NON_TARGET_STATE},
-            'ResponseMetadata': {'HTTPStatusCode': GOOD_HTTP_STATUS}
+            'ResponseMetadata': {'HTTPStatusCode': GOOD_HTTP_STATUS},
         }
 
-        self.assertEqual(operator.poke(None), False)
+        assert operator.poke(None) is False
 
     def test_poke_returns_false_when_http_response_is_bad(self):
         operator = EmrBaseSensorSubclass(
@@ -88,10 +90,10 @@ class TestEmrBaseSensor(unittest.TestCase):
         )
         operator.response = {
             'SomeKey': {'State': TARGET_STATE},
-            'ResponseMetadata': {'HTTPStatusCode': BAD_HTTP_STATUS}
+            'ResponseMetadata': {'HTTPStatusCode': BAD_HTTP_STATUS},
         }
 
-        self.assertEqual(operator.poke(None), False)
+        assert operator.poke(None) is False
 
     def test_poke_raises_error_when_state_is_in_failed_states(self):
         operator = EmrBaseSensorSubclass(
@@ -99,14 +101,13 @@ class TestEmrBaseSensor(unittest.TestCase):
             poke_interval=2,
         )
         operator.response = {
-            'SomeKey': {'State': FAILED_STATE,
-                        'StateChangeReason': {'Code': EXPECTED_CODE}},
-            'ResponseMetadata': {'HTTPStatusCode': GOOD_HTTP_STATUS}
+            'SomeKey': {'State': FAILED_STATE, 'StateChangeReason': {'Code': EXPECTED_CODE}},
+            'ResponseMetadata': {'HTTPStatusCode': GOOD_HTTP_STATUS},
         }
 
-        with self.assertRaises(AirflowException) as context:
+        with pytest.raises(AirflowException) as ctx:
             operator.poke(None)
 
-        self.assertIn('EMR job failed', str(context.exception))
-        self.assertIn(EXPECTED_CODE, str(context.exception))
-        self.assertNotIn(EMPTY_CODE, str(context.exception))
+        assert 'EMR job failed' in str(ctx.value)
+        assert EXPECTED_CODE in str(ctx.value)
+        assert EMPTY_CODE not in str(ctx.value)

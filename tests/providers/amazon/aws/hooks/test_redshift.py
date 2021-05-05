@@ -38,13 +38,13 @@ class TestRedshiftHook(unittest.TestCase):
             ClusterIdentifier='test_cluster',
             NodeType='dc1.large',
             MasterUsername='admin',
-            MasterUserPassword='mock_password'
+            MasterUserPassword='mock_password',
         )
         client.create_cluster(
             ClusterIdentifier='test_cluster_2',
             NodeType='dc1.large',
             MasterUsername='admin',
-            MasterUserPassword='mock_password'
+            MasterUserPassword='mock_password',
         )
         if not client.describe_clusters()['Clusters']:
             raise ValueError('AWS not properly mocked')
@@ -57,7 +57,7 @@ class TestRedshiftHook(unittest.TestCase):
         client_from_hook = hook.get_conn()
 
         clusters = client_from_hook.describe_clusters()['Clusters']
-        self.assertEqual(len(clusters), 2)
+        assert len(clusters) == 2
 
     @unittest.skipIf(mock_redshift is None, 'mock_redshift package not present')
     @mock_redshift
@@ -65,11 +65,10 @@ class TestRedshiftHook(unittest.TestCase):
         self._create_clusters()
         hook = RedshiftHook(aws_conn_id='aws_default')
         hook.create_cluster_snapshot('test_snapshot', 'test_cluster')
-        self.assertEqual(
-            hook.restore_from_cluster_snapshot(
-                'test_cluster_3', 'test_snapshot'
-            )['ClusterIdentifier'],
-            'test_cluster_3')
+        assert (
+            hook.restore_from_cluster_snapshot('test_cluster_3', 'test_snapshot')['ClusterIdentifier']
+            == 'test_cluster_3'
+        )
 
     @unittest.skipIf(mock_redshift is None, 'mock_redshift package not present')
     @mock_redshift
@@ -78,7 +77,7 @@ class TestRedshiftHook(unittest.TestCase):
         hook = RedshiftHook(aws_conn_id='aws_default')
 
         cluster = hook.delete_cluster('test_cluster_2')
-        self.assertNotEqual(cluster, None)
+        assert cluster is not None
 
     @unittest.skipIf(mock_redshift is None, 'mock_redshift package not present')
     @mock_redshift
@@ -87,7 +86,7 @@ class TestRedshiftHook(unittest.TestCase):
         hook = RedshiftHook(aws_conn_id='aws_default')
 
         snapshot = hook.create_cluster_snapshot('test_snapshot_2', 'test_cluster')
-        self.assertNotEqual(snapshot, None)
+        assert snapshot is not None
 
     @unittest.skipIf(mock_redshift is None, 'mock_redshift package not present')
     @mock_redshift
@@ -95,7 +94,7 @@ class TestRedshiftHook(unittest.TestCase):
         self._create_clusters()
         hook = RedshiftHook(aws_conn_id='aws_default')
         status = hook.cluster_status('test_cluster_not_here')
-        self.assertEqual(status, 'cluster_not_found')
+        assert status == 'cluster_not_found'
 
     @unittest.skipIf(mock_redshift is None, 'mock_redshift package not present')
     @mock_redshift
@@ -103,4 +102,4 @@ class TestRedshiftHook(unittest.TestCase):
         self._create_clusters()
         hook = RedshiftHook(aws_conn_id='aws_default')
         status = hook.cluster_status('test_cluster')
-        self.assertEqual(status, 'available')
+        assert status == 'available'

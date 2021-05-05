@@ -18,6 +18,7 @@
 import unittest
 from unittest.mock import patch
 
+import pytest
 from sqlalchemy import or_
 
 from airflow import configuration, models
@@ -27,7 +28,6 @@ from airflow.utils.session import create_session
 
 
 class TestS3ToMySqlTransfer(unittest.TestCase):
-
     def setUp(self):
         configuration.conf.load_test_config()
 
@@ -37,7 +37,7 @@ class TestS3ToMySqlTransfer(unittest.TestCase):
                 conn_type='s3',
                 schema='test',
                 extra='{"aws_access_key_id": "aws_access_key_id", "aws_secret_access_key":'
-                      ' "aws_secret_access_key"}'
+                ' "aws_secret_access_key"}',
             )
         )
         db.merge_conn(
@@ -47,7 +47,7 @@ class TestS3ToMySqlTransfer(unittest.TestCase):
                 host='some.host.com',
                 schema='test_db',
                 login='user',
-                password='password'
+                password='password',
             )
         )
 
@@ -62,7 +62,7 @@ class TestS3ToMySqlTransfer(unittest.TestCase):
                 IGNORE 1 LINES
             """,
             'task_id': 'task_id',
-            'dag': None
+            'dag': None,
         }
 
     @patch('airflow.providers.mysql.transfers.s3_to_mysql.S3Hook.download_file')
@@ -71,14 +71,12 @@ class TestS3ToMySqlTransfer(unittest.TestCase):
     def test_execute(self, mock_remove, mock_bulk_load_custom, mock_download_file):
         S3ToMySqlOperator(**self.s3_to_mysql_transfer_kwargs).execute({})
 
-        mock_download_file.assert_called_once_with(
-            key=self.s3_to_mysql_transfer_kwargs['s3_source_key']
-        )
+        mock_download_file.assert_called_once_with(key=self.s3_to_mysql_transfer_kwargs['s3_source_key'])
         mock_bulk_load_custom.assert_called_once_with(
             table=self.s3_to_mysql_transfer_kwargs['mysql_table'],
             tmp_file=mock_download_file.return_value,
             duplicate_key_handling=self.s3_to_mysql_transfer_kwargs['mysql_duplicate_key_handling'],
-            extra_options=self.s3_to_mysql_transfer_kwargs['mysql_extra_options']
+            extra_options=self.s3_to_mysql_transfer_kwargs['mysql_extra_options'],
         )
         mock_remove.assert_called_once_with(mock_download_file.return_value)
 
@@ -88,23 +86,24 @@ class TestS3ToMySqlTransfer(unittest.TestCase):
     def test_execute_exception(self, mock_remove, mock_bulk_load_custom, mock_download_file):
         mock_bulk_load_custom.side_effect = Exception
 
-        self.assertRaises(Exception, S3ToMySqlOperator(
-            **self.s3_to_mysql_transfer_kwargs).execute, {})
+        with pytest.raises(Exception):
+            S3ToMySqlOperator(**self.s3_to_mysql_transfer_kwargs).execute({})
 
-        mock_download_file.assert_called_once_with(
-            key=self.s3_to_mysql_transfer_kwargs['s3_source_key']
-        )
+        mock_download_file.assert_called_once_with(key=self.s3_to_mysql_transfer_kwargs['s3_source_key'])
         mock_bulk_load_custom.assert_called_once_with(
             table=self.s3_to_mysql_transfer_kwargs['mysql_table'],
             tmp_file=mock_download_file.return_value,
             duplicate_key_handling=self.s3_to_mysql_transfer_kwargs['mysql_duplicate_key_handling'],
-            extra_options=self.s3_to_mysql_transfer_kwargs['mysql_extra_options']
+            extra_options=self.s3_to_mysql_transfer_kwargs['mysql_extra_options'],
         )
         mock_remove.assert_called_once_with(mock_download_file.return_value)
 
     def tearDown(self):
         with create_session() as session:
-            (session
-             .query(models.Connection)
-             .filter(or_(models.Connection.conn_id == 's3_test', models.Connection.conn_id == 'mysql_test'))
-             .delete())
+            (
+                session.query(models.Connection)
+                .filter(
+                    or_(models.Connection.conn_id == 's3_test', models.Connection.conn_id == 'mysql_test')
+                )
+                .delete()
+            )

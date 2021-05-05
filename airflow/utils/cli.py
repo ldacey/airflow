@@ -16,12 +16,8 @@
 # specific language governing permissions and limitations
 # under the License.
 #
-"""
-Utilities module for cli
-"""
-
+"""Utilities module for cli"""
 import functools
-import getpass
 import json
 import logging
 import os
@@ -30,18 +26,30 @@ import socket
 import sys
 import threading
 import traceback
+import warnings
 from argparse import Namespace
 from datetime import datetime
-from typing import Callable, Optional, TypeVar, cast
+from typing import TYPE_CHECKING, Callable, Optional, TypeVar, cast
 
 from airflow import settings
 from airflow.exceptions import AirflowException
-from airflow.models import DAG, DagBag, DagModel, DagPickle, Log
 from airflow.utils import cli_action_loggers
-from airflow.utils.platform import is_terminal_support_colors
+from airflow.utils.platform import getuser, is_terminal_support_colors
 from airflow.utils.session import provide_session
 
 T = TypeVar("T", bound=Callable)  # pylint: disable=invalid-name
+
+if TYPE_CHECKING:
+    from airflow.models import DAG
+
+
+def _check_cli_args(args):
+    if not args:
+        raise ValueError("Args should be set")
+    if not isinstance(args[0], Namespace):
+        raise ValueError(
+            "1st positional argument should be argparse.Namespace instance," f"but is {type(args[0])}"
+        )
 
 
 def action_logging(f: T) -> T:
@@ -65,6 +73,7 @@ def action_logging(f: T) -> T:
     :param f: function instance
     :return: wrapped function
     """
+
     @functools.wraps(f)
     def wrapper(*args, **kwargs):
         """
@@ -75,11 +84,7 @@ def action_logging(f: T) -> T:
             at 1st positional argument
         :param kwargs: A passthrough keyword argument
         """
-        if not args:
-            raise ValueError("Args should be set")
-        if not isinstance(args[0], Namespace):
-            raise ValueError("1st positional argument should be argparse.Namespace instance,"
-                             f"but is {type(args[0])}")
+        _check_cli_args(args)
         metrics = _build_metrics(f.__name__, args[0])
         cli_action_loggers.on_pre_execution(**metrics)
         try:
@@ -105,13 +110,33 @@ def _build_metrics(func_name, namespace):
     :param namespace: Namespace instance from argparse
     :return: dict with metrics
     """
+    from airflow.models import Log
 
-    metrics = {'sub_command': func_name, 'start_datetime': datetime.utcnow(),
-               'full_command': '{}'.format(list(sys.argv)), 'user': getpass.getuser()}
+    sub_commands_to_check = {'users', 'connections'}
+    sensitive_fields = {'-p', '--password', '--conn-password'}
+    full_command = list(sys.argv)
+    if full_command[1] in sub_commands_to_check:  # pylint: disable=too-many-nested-blocks
+        for idx, command in enumerate(full_command):
+            if command in sensitive_fields:
+                # For cases when password is passed as "--password xyz" (with space between key and value)
+                full_command[idx + 1] = "*" * 8
+            else:
+                # For cases when password is passed as "--password=xyz" (with '=' between key and value)
+                for sensitive_field in sensitive_fields:
+                    if command.startswith(f'{sensitive_field}='):
+                        full_command[idx] = f'{sensitive_field}={"*" * 8}'
+
+    metrics = {
+        'sub_command': func_name,
+        'start_datetime': datetime.utcnow(),
+        'full_command': f'{full_command}',
+        'user': getuser(),
+    }
 
     if not isinstance(namespace, Namespace):
-        raise ValueError("namespace argument should be argparse.Namespace instance,"
-                         f"but is {type(namespace)}")
+        raise ValueError(
+            "namespace argument should be argparse.Namespace instance," f"but is {type(namespace)}"
+        )
     tmp_dic = vars(namespace)
     metrics['dag_id'] = tmp_dic.get('dag_id')
     metrics['task_id'] = tmp_dic.get('task_id')
@@ -120,13 +145,14 @@ def _build_metrics(func_name, namespace):
 
     extra = json.dumps({k: metrics[k] for k in ('host_name', 'full_command')})
     log = Log(
-        event='cli_{}'.format(func_name),
+        event=f'cli_{func_name}',
         task_instance=None,
         owner=metrics['user'],
         extra=extra,
         task_id=metrics.get('task_id'),
         dag_id=metrics.get('dag_id'),
-        execution_date=metrics.get('execution_date'))
+        execution_date=metrics.get('execution_date'),
+    )
     metrics['log'] = log
     return metrics
 
@@ -143,28 +169,36 @@ def process_subdir(subdir: Optional[str]):
 
 def get_dag_by_file_location(dag_id: str):
     """Returns DAG of a given dag_id by looking up file location"""
+    from airflow.models import DagBag, DagModel
+
     # Benefit is that logging from other dags in dagbag will not appear
     dag_model = DagModel.get_current(dag_id)
     if dag_model is None:
         raise AirflowException(
             'dag_id could not be found: {}. Either the dag did not exist or it failed to '
-            'parse.'.format(dag_id))
+            'parse.'.format(dag_id)
+        )
     dagbag = DagBag(dag_folder=dag_model.fileloc)
     return dagbag.dags[dag_id]
 
 
-def get_dag(subdir: Optional[str], dag_id: str) -> DAG:
+def get_dag(subdir: Optional[str], dag_id: str) -> "DAG":
     """Returns DAG of a given dag_id"""
+    from airflow.models import DagBag
+
     dagbag = DagBag(process_subdir(subdir))
     if dag_id not in dagbag.dags:
         raise AirflowException(
             'dag_id could not be found: {}. Either the dag did not exist or it failed to '
-            'parse.'.format(dag_id))
+            'parse.'.format(dag_id)
+        )
     return dagbag.dags[dag_id]
 
 
 def get_dags(subdir: Optional[str], dag_id: str, use_regex: bool = False):
     """Returns DAG(s) matching a given regex or dag_id"""
+    from airflow.models import DagBag
+
     if not use_regex:
         return [get_dag(subdir, dag_id)]
     dagbag = DagBag(process_subdir(subdir))
@@ -172,13 +206,16 @@ def get_dags(subdir: Optional[str], dag_id: str, use_regex: bool = False):
     if not matched_dags:
         raise AirflowException(
             'dag_id could not be found with regex: {}. Either the dag did not exist '
-            'or it failed to parse.'.format(dag_id))
+            'or it failed to parse.'.format(dag_id)
+        )
     return matched_dags
 
 
 @provide_session
 def get_dag_by_pickle(pickle_id, session=None):
     """Fetch DAG from the database using pickling"""
+    from airflow.models import DagPickle
+
     dag_pickle = session.query(DagPickle).filter(DagPickle.id == pickle_id).first()
     if not dag_pickle:
         raise AirflowException("Who hid the pickle!? [missing pickle]")
@@ -189,13 +226,16 @@ def get_dag_by_pickle(pickle_id, session=None):
 def setup_locations(process, pid=None, stdout=None, stderr=None, log=None):
     """Creates logging paths"""
     if not stderr:
-        stderr = os.path.join(settings.AIRFLOW_HOME, 'airflow-{}.err'.format(process))
+        stderr = os.path.join(settings.AIRFLOW_HOME, f'airflow-{process}.err')
     if not stdout:
-        stdout = os.path.join(settings.AIRFLOW_HOME, 'airflow-{}.out'.format(process))
+        stdout = os.path.join(settings.AIRFLOW_HOME, f'airflow-{process}.out')
     if not log:
-        log = os.path.join(settings.AIRFLOW_HOME, 'airflow-{}.log'.format(process))
+        log = os.path.join(settings.AIRFLOW_HOME, f'airflow-{process}.log')
+
     if not pid:
-        pid = os.path.join(settings.AIRFLOW_HOME, 'airflow-{}.pid'.format(process))
+        pid = os.path.join(settings.AIRFLOW_HOME, f'airflow-{process}.pid')
+    else:
+        pid = os.path.abspath(pid)
 
     return pid, stdout, stderr, log
 
@@ -225,35 +265,55 @@ def sigquit_handler(sig, frame):  # pylint: disable=unused-argument
     Helps debug deadlocks by printing stacktraces when this gets a SIGQUIT
     e.g. kill -s QUIT <PID> or CTRL+\
     """
-    print("Dumping stack traces for all threads in PID {}".format(os.getpid()))
+    print(f"Dumping stack traces for all threads in PID {os.getpid()}")
     id_to_name = {th.ident: th.name for th in threading.enumerate()}
     code = []
     for thread_id, stack in sys._current_frames().items():  # pylint: disable=protected-access
-        code.append("\n# Thread: {}({})"
-                    .format(id_to_name.get(thread_id, ""), thread_id))
+        code.append(f"\n# Thread: {id_to_name.get(thread_id, '')}({thread_id})")
         for filename, line_number, name, line in traceback.extract_stack(stack):
-            code.append('File: "{}", line {}, in {}'
-                        .format(filename, line_number, name))
+            code.append(f'File: "{filename}", line {line_number}, in {name}')
             if line:
-                code.append("  {}".format(line.strip()))
+                code.append(f"  {line.strip()}")
     print("\n".join(code))
 
 
 class ColorMode:
-    """
-    Coloring modes. If `auto` is then automatically detected.
-    """
+    """Coloring modes. If `auto` is then automatically detected."""
+
     ON = "on"
     OFF = "off"
     AUTO = "auto"
 
 
 def should_use_colors(args) -> bool:
-    """
-    Processes arguments and decides whether to enable color in output
-    """
+    """Processes arguments and decides whether to enable color in output"""
     if args.color == ColorMode.ON:
         return True
     if args.color == ColorMode.OFF:
         return False
     return is_terminal_support_colors()
+
+
+def suppress_logs_and_warning(f: T) -> T:
+    """
+    Decorator to suppress logging and warning messages
+    in cli functions.
+    """
+
+    @functools.wraps(f)
+    def _wrapper(*args, **kwargs):
+        _check_cli_args(args)
+        if args[0].verbose:
+            f(*args, **kwargs)
+        else:
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")
+                logging.disable(logging.CRITICAL)
+                try:
+                    f(*args, **kwargs)
+                finally:
+                    # logging output again depends on the effective
+                    # levels of individual loggers
+                    logging.disable(logging.NOTSET)
+
+    return cast(T, _wrapper)

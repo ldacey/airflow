@@ -44,7 +44,6 @@ DEFAULT_DATE = datetime(2018, 1, 1)
 
 
 class TestSFTPToS3Operator(unittest.TestCase):
-
     @mock_s3
     def setUp(self):
         hook = SSHHook(ssh_conn_id='ssh_default')
@@ -73,27 +72,27 @@ class TestSFTPToS3Operator(unittest.TestCase):
     @conf_vars({('core', 'enable_xcom_pickling'): 'True'})
     def test_sftp_to_s3_operation(self):
         # Setting
-        test_remote_file_content = \
-            "This is remote file content \n which is also multiline " \
+        test_remote_file_content = (
+            "This is remote file content \n which is also multiline "
             "another line here \n this is last line. EOF"
+        )
 
         # create a test file remotely
         create_file_task = SSHOperator(
             task_id="test_create_file",
             ssh_hook=self.hook,
-            command="echo '{0}' > {1}".format(test_remote_file_content,
-                                              self.sftp_path),
+            command=f"echo '{test_remote_file_content}' > {self.sftp_path}",
             do_xcom_push=True,
-            dag=self.dag
+            dag=self.dag,
         )
-        self.assertIsNotNone(create_file_task)
+        assert create_file_task is not None
         ti1 = TaskInstance(task=create_file_task, execution_date=timezone.utcnow())
         ti1.run()
 
         # Test for creation of s3 bucket
         conn = boto3.client('s3')
         conn.create_bucket(Bucket=self.s3_bucket)
-        self.assertTrue(self.s3_hook.check_for_bucket(self.s3_bucket))
+        assert self.s3_hook.check_for_bucket(self.s3_bucket)
 
         # get remote file to local
         run_task = SFTPToS3Operator(
@@ -103,22 +102,21 @@ class TestSFTPToS3Operator(unittest.TestCase):
             sftp_conn_id=SFTP_CONN_ID,
             s3_conn_id=S3_CONN_ID,
             task_id='test_sftp_to_s3',
-            dag=self.dag
+            dag=self.dag,
         )
-        self.assertIsNotNone(run_task)
+        assert run_task is not None
 
         run_task.execute(None)
 
         # Check if object was created in s3
-        objects_in_dest_bucket = conn.list_objects(Bucket=self.s3_bucket,
-                                                   Prefix=self.s3_key)
+        objects_in_dest_bucket = conn.list_objects(Bucket=self.s3_bucket, Prefix=self.s3_key)
         # there should be object found, and there should only be one object found
-        self.assertEqual(len(objects_in_dest_bucket['Contents']), 1)
+        assert len(objects_in_dest_bucket['Contents']) == 1
 
         # the object found should be consistent with dest_key specified earlier
-        self.assertEqual(objects_in_dest_bucket['Contents'][0]['Key'], self.s3_key)
+        assert objects_in_dest_bucket['Contents'][0]['Key'] == self.s3_key
 
         # Clean up after finishing with test
         conn.delete_object(Bucket=self.s3_bucket, Key=self.s3_key)
         conn.delete_bucket(Bucket=self.s3_bucket)
-        self.assertFalse(self.s3_hook.check_for_bucket(self.s3_bucket))
+        assert not self.s3_hook.check_for_bucket(self.s3_bucket)

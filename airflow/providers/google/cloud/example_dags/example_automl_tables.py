@@ -26,19 +26,28 @@ from typing import Dict, List
 from airflow import models
 from airflow.providers.google.cloud.hooks.automl import CloudAutoMLHook
 from airflow.providers.google.cloud.operators.automl import (
-    AutoMLBatchPredictOperator, AutoMLCreateDatasetOperator, AutoMLDeleteDatasetOperator,
-    AutoMLDeleteModelOperator, AutoMLDeployModelOperator, AutoMLGetModelOperator, AutoMLImportDataOperator,
-    AutoMLListDatasetOperator, AutoMLPredictOperator, AutoMLTablesListColumnSpecsOperator,
-    AutoMLTablesListTableSpecsOperator, AutoMLTablesUpdateDatasetOperator, AutoMLTrainModelOperator,
+    AutoMLBatchPredictOperator,
+    AutoMLCreateDatasetOperator,
+    AutoMLDeleteDatasetOperator,
+    AutoMLDeleteModelOperator,
+    AutoMLDeployModelOperator,
+    AutoMLGetModelOperator,
+    AutoMLImportDataOperator,
+    AutoMLListDatasetOperator,
+    AutoMLPredictOperator,
+    AutoMLTablesListColumnSpecsOperator,
+    AutoMLTablesListTableSpecsOperator,
+    AutoMLTablesUpdateDatasetOperator,
+    AutoMLTrainModelOperator,
 )
 from airflow.utils.dates import days_ago
 
 GCP_PROJECT_ID = os.environ.get("GCP_PROJECT_ID", "your-project-id")
 GCP_AUTOML_LOCATION = os.environ.get("GCP_AUTOML_LOCATION", "us-central1")
 GCP_AUTOML_DATASET_BUCKET = os.environ.get(
-    "GCP_AUTOML_DATASET_BUCKET", "gs://cloud-ml-tables-data/bank-marketing.csv"
+    "GCP_AUTOML_DATASET_BUCKET", "gs://INVALID BUCKET NAME/bank-marketing.csv"
 )
-TARGET = os.environ.get("GCP_AUTOML_TARGET", "Class")
+TARGET = os.environ.get("GCP_AUTOML_TARGET", "Deposit")
 
 # Example values
 MODEL_ID = "TBL123456"
@@ -67,9 +76,9 @@ def get_target_column_spec(columns_specs: List[Dict], column_name: str) -> str:
     Using column name returns spec of the column.
     """
     for column in columns_specs:
-        if column["displayName"] == column_name:
+        if column["display_name"] == column_name:
             return extract_object_id(column)
-    return ""
+    raise Exception(f"Unknown target column: {column_name}")
 
 
 # Example DAG to create dataset, train model_id and deploy it.
@@ -92,9 +101,7 @@ with models.DAG(
         project_id=GCP_PROJECT_ID,
     )
 
-    dataset_id = (
-        "{{ task_instance.xcom_pull('create_dataset_task', key='dataset_id') }}"
-    )
+    dataset_id = "{{ task_instance.xcom_pull('create_dataset_task', key='dataset_id') }}"
     # [END howto_operator_automl_create_dataset]
 
     MODEL["dataset_id"] = dataset_id
@@ -194,9 +201,7 @@ with models.DAG(
         project_id=GCP_PROJECT_ID,
     )
 
-    dataset_id = (
-        '{{ task_instance.xcom_pull("create_dataset_task", key="dataset_id") }}'
-    )
+    dataset_id = '{{ task_instance.xcom_pull("create_dataset_task", key="dataset_id") }}'
 
     import_dataset_task = AutoMLImportDataOperator(
         task_id="import_dataset_task",

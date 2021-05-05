@@ -15,7 +15,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""This module is deprecated. Please use `airflow.sensors.filesystem`."""
+"""This module is deprecated. Please use :mod:`airflow.sensors.filesystem`."""
 
 import warnings
 
@@ -23,6 +23,5 @@ import warnings
 from airflow.sensors.filesystem import FileSensor  # noqa
 
 warnings.warn(
-    "This module is deprecated. Please use `airflow.sensors.filesystem`.",
-    DeprecationWarning, stacklevel=2
+    "This module is deprecated. Please use `airflow.sensors.filesystem`.", DeprecationWarning, stacklevel=2
 )

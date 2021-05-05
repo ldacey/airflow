@@ -18,9 +18,10 @@
 #
 
 import unittest
+from unittest import mock
 from unittest.mock import call, patch
 
-import mock
+import pytest
 
 from airflow.exceptions import AirflowException
 from airflow.providers.google.cloud.hooks.datastore import DatastoreHook
@@ -49,10 +50,11 @@ class TestDatastoreHook(unittest.TestCase):
     def test_get_conn(self, mock_build, mock_authorize):
         conn = self.datastore_hook.get_conn()
 
-        mock_build.assert_called_once_with('datastore', 'v1', http=mock_authorize.return_value,
-                                           cache_discovery=False)
-        self.assertEqual(conn, mock_build.return_value)
-        self.assertEqual(conn, self.datastore_hook.connection)
+        mock_build.assert_called_once_with(
+            'datastore', 'v1', http=mock_authorize.return_value, cache_discovery=False
+        )
+        assert conn == mock_build.return_value
+        assert conn == self.datastore_hook.connection
 
     @patch('airflow.providers.google.cloud.hooks.datastore.DatastoreHook.get_conn')
     def test_allocate_ids(self, mock_get_conn):
@@ -64,23 +66,26 @@ class TestDatastoreHook(unittest.TestCase):
         projects = self.datastore_hook.connection.projects
         projects.assert_called_once_with()
         allocate_ids = projects.return_value.allocateIds
-        allocate_ids.assert_called_once_with(projectId=GCP_PROJECT_ID,
-                                             body={'keys': partial_keys})
+        allocate_ids.assert_called_once_with(projectId=GCP_PROJECT_ID, body={'keys': partial_keys})
         execute = allocate_ids.return_value.execute
         execute.assert_called_once_with(num_retries=mock.ANY)
-        self.assertEqual(keys, execute.return_value['keys'])
+        assert keys == execute.return_value['keys']
 
-    @patch('airflow.providers.google.cloud.hooks.datastore.DatastoreHook.project_id',
-           new_callable=mock.PropertyMock, return_value=None)
+    @patch(
+        'airflow.providers.google.cloud.hooks.datastore.DatastoreHook.project_id',
+        new_callable=mock.PropertyMock,
+        return_value=None,
+    )
     @patch('airflow.providers.google.cloud.hooks.datastore.DatastoreHook.get_conn')
     def test_allocate_ids_no_project_id(self, mock_get_conn, mock_project_id):
         self.datastore_hook.connection = mock_get_conn.return_value
         partial_keys = []
 
-        with self.assertRaises(AirflowException) as err:
+        with pytest.raises(AirflowException) as ctx:
             self.datastore_hook.allocate_ids(  # pylint: disable=no-value-for-parameter
-                partial_keys=partial_keys)
-        self.assertIn("project_id", str(err.exception))
+                partial_keys=partial_keys
+            )
+        assert "project_id" in str(ctx.value)
 
     @patch('airflow.providers.google.cloud.hooks.datastore.DatastoreHook.get_conn')
     def test_begin_transaction(self, mock_get_conn):
@@ -94,21 +99,22 @@ class TestDatastoreHook(unittest.TestCase):
         projects = self.datastore_hook.connection.projects
         projects.assert_called_once_with()
         begin_transaction = projects.return_value.beginTransaction
-        begin_transaction.assert_called_once_with(
-            projectId=GCP_PROJECT_ID, body={'transactionOptions': {}}
-        )
+        begin_transaction.assert_called_once_with(projectId=GCP_PROJECT_ID, body={'transactionOptions': {}})
         execute = begin_transaction.return_value.execute
         execute.assert_called_once_with(num_retries=mock.ANY)
-        self.assertEqual(transaction, execute.return_value['transaction'])
+        assert transaction == execute.return_value['transaction']
 
-    @patch('airflow.providers.google.cloud.hooks.datastore.DatastoreHook.project_id',
-           new_callable=mock.PropertyMock, return_value=None)
+    @patch(
+        'airflow.providers.google.cloud.hooks.datastore.DatastoreHook.project_id',
+        new_callable=mock.PropertyMock,
+        return_value=None,
+    )
     @patch('airflow.providers.google.cloud.hooks.datastore.DatastoreHook.get_conn')
     def test_begin_transaction_no_project_id(self, mock_get_conn, mock_project_id):
         self.datastore_hook.connection = mock_get_conn.return_value
-        with self.assertRaises(AirflowException) as err:
+        with pytest.raises(AirflowException) as ctx:
             self.datastore_hook.begin_transaction()  # pylint: disable=no-value-for-parameter
-        self.assertIn("project_id", str(err.exception))
+        assert "project_id" in str(ctx.value)
 
     @patch('airflow.providers.google.cloud.hooks.datastore.DatastoreHook.get_conn')
     def test_commit(self, mock_get_conn):
@@ -123,18 +129,21 @@ class TestDatastoreHook(unittest.TestCase):
         commit.assert_called_once_with(projectId=GCP_PROJECT_ID, body=body)
         execute = commit.return_value.execute
         execute.assert_called_once_with(num_retries=mock.ANY)
-        self.assertEqual(resp, execute.return_value)
+        assert resp == execute.return_value
 
-    @patch('airflow.providers.google.cloud.hooks.datastore.DatastoreHook.project_id',
-           new_callable=mock.PropertyMock, return_value=None)
+    @patch(
+        'airflow.providers.google.cloud.hooks.datastore.DatastoreHook.project_id',
+        new_callable=mock.PropertyMock,
+        return_value=None,
+    )
     @patch('airflow.providers.google.cloud.hooks.datastore.DatastoreHook.get_conn')
     def test_commit_no_project_id(self, mock_get_conn, mock_project_id):
         self.datastore_hook.connection = mock_get_conn.return_value
         body = {'item': 'a'}
 
-        with self.assertRaises(AirflowException) as err:
+        with pytest.raises(AirflowException) as ctx:
             self.datastore_hook.commit(body=body)  # pylint: disable=no-value-for-parameter
-        self.assertIn("project_id", str(err.exception))
+        assert "project_id" in str(ctx.value)
 
     @patch('airflow.providers.google.cloud.hooks.datastore.DatastoreHook.get_conn')
     def test_lookup(self, mock_get_conn):
@@ -143,27 +152,26 @@ class TestDatastoreHook(unittest.TestCase):
         read_consistency = 'ENUM'
         transaction = 'transaction'
 
-        resp = self.datastore_hook.lookup(keys=keys,
-                                          read_consistency=read_consistency,
-                                          transaction=transaction,
-                                          project_id=GCP_PROJECT_ID
-                                          )
+        resp = self.datastore_hook.lookup(
+            keys=keys, read_consistency=read_consistency, transaction=transaction, project_id=GCP_PROJECT_ID
+        )
 
         projects = self.datastore_hook.connection.projects
         projects.assert_called_once_with()
         lookup = projects.return_value.lookup
-        lookup.assert_called_once_with(projectId=GCP_PROJECT_ID,
-                                       body={
-                                           'keys': keys,
-                                           'readConsistency': read_consistency,
-                                           'transaction': transaction
-                                       })
+        lookup.assert_called_once_with(
+            projectId=GCP_PROJECT_ID,
+            body={'keys': keys, 'readConsistency': read_consistency, 'transaction': transaction},
+        )
         execute = lookup.return_value.execute
         execute.assert_called_once_with(num_retries=mock.ANY)
-        self.assertEqual(resp, execute.return_value)
+        assert resp == execute.return_value
 
-    @patch('airflow.providers.google.cloud.hooks.datastore.DatastoreHook.project_id',
-           new_callable=mock.PropertyMock, return_value=None)
+    @patch(
+        'airflow.providers.google.cloud.hooks.datastore.DatastoreHook.project_id',
+        new_callable=mock.PropertyMock,
+        return_value=None,
+    )
     @patch('airflow.providers.google.cloud.hooks.datastore.DatastoreHook.get_conn')
     def test_lookup_no_project_id(self, mock_get_conn, mock_project_id):
         self.datastore_hook.connection = mock_get_conn.return_value
@@ -171,12 +179,13 @@ class TestDatastoreHook(unittest.TestCase):
         read_consistency = 'ENUM'
         transaction = 'transaction'
 
-        with self.assertRaises(AirflowException) as err:
-            self.datastore_hook.lookup(keys=keys,  # pylint: disable=no-value-for-parameter
-                                       read_consistency=read_consistency,
-                                       transaction=transaction,
-                                       )
-        self.assertIn("project_id", str(err.exception))
+        with pytest.raises(AirflowException) as ctx:
+            self.datastore_hook.lookup(  # pylint: disable=no-value-for-parameter
+                keys=keys,
+                read_consistency=read_consistency,
+                transaction=transaction,
+            )
+        assert "project_id" in str(ctx.value)
 
     @patch('airflow.providers.google.cloud.hooks.datastore.DatastoreHook.get_conn')
     def test_rollback(self, mock_get_conn):
@@ -188,21 +197,23 @@ class TestDatastoreHook(unittest.TestCase):
         projects = self.datastore_hook.connection.projects
         projects.assert_called_once_with()
         rollback = projects.return_value.rollback
-        rollback.assert_called_once_with(projectId=GCP_PROJECT_ID,
-                                         body={'transaction': transaction})
+        rollback.assert_called_once_with(projectId=GCP_PROJECT_ID, body={'transaction': transaction})
         execute = rollback.return_value.execute
         execute.assert_called_once_with(num_retries=mock.ANY)
 
-    @patch('airflow.providers.google.cloud.hooks.datastore.DatastoreHook.project_id',
-           new_callable=mock.PropertyMock, return_value=None)
+    @patch(
+        'airflow.providers.google.cloud.hooks.datastore.DatastoreHook.project_id',
+        new_callable=mock.PropertyMock,
+        return_value=None,
+    )
     @patch('airflow.providers.google.cloud.hooks.datastore.DatastoreHook.get_conn')
     def test_rollback_no_project_id(self, mock_get_conn, mock_project_id):
         self.datastore_hook.connection = mock_get_conn.return_value
         transaction = 'transaction'
 
-        with self.assertRaises(AirflowException) as err:
+        with pytest.raises(AirflowException) as ctx:
             self.datastore_hook.rollback(transaction=transaction)  # pylint: disable=no-value-for-parameter
-        self.assertIn("project_id", str(err.exception))
+        assert "project_id" in str(ctx.value)
 
     @patch('airflow.providers.google.cloud.hooks.datastore.DatastoreHook.get_conn')
     def test_run_query(self, mock_get_conn):
@@ -217,18 +228,21 @@ class TestDatastoreHook(unittest.TestCase):
         run_query.assert_called_once_with(projectId=GCP_PROJECT_ID, body=body)
         execute = run_query.return_value.execute
         execute.assert_called_once_with(num_retries=mock.ANY)
-        self.assertEqual(resp, execute.return_value['batch'])
+        assert resp == execute.return_value['batch']
 
-    @patch('airflow.providers.google.cloud.hooks.datastore.DatastoreHook.project_id',
-           new_callable=mock.PropertyMock, return_value=None)
+    @patch(
+        'airflow.providers.google.cloud.hooks.datastore.DatastoreHook.project_id',
+        new_callable=mock.PropertyMock,
+        return_value=None,
+    )
     @patch('airflow.providers.google.cloud.hooks.datastore.DatastoreHook.get_conn')
     def test_run_query_no_project_id(self, mock_get_conn, mock_project_id):
         self.datastore_hook.connection = mock_get_conn.return_value
         body = {'item': 'a'}
 
-        with self.assertRaises(AirflowException) as err:
+        with pytest.raises(AirflowException) as ctx:
             self.datastore_hook.run_query(body=body)  # pylint: disable=no-value-for-parameter
-        self.assertIn("project_id", str(err.exception))
+        assert "project_id" in str(ctx.value)
 
     @patch('airflow.providers.google.cloud.hooks.datastore.DatastoreHook.get_conn')
     def test_get_operation(self, mock_get_conn):
@@ -245,7 +259,7 @@ class TestDatastoreHook(unittest.TestCase):
         get.assert_called_once_with(name=name)
         execute = get.return_value.execute
         execute.assert_called_once_with(num_retries=mock.ANY)
-        self.assertEqual(resp, execute.return_value)
+        assert resp == execute.return_value
 
     @patch('airflow.providers.google.cloud.hooks.datastore.DatastoreHook.get_conn')
     def test_delete_operation(self, mock_get_conn):
@@ -262,14 +276,16 @@ class TestDatastoreHook(unittest.TestCase):
         delete.assert_called_once_with(name=name)
         execute = delete.return_value.execute
         execute.assert_called_once_with(num_retries=mock.ANY)
-        self.assertEqual(resp, execute.return_value)
+        assert resp == execute.return_value
 
     @patch('airflow.providers.google.cloud.hooks.datastore.time.sleep')
-    @patch('airflow.providers.google.cloud.hooks.datastore.DatastoreHook.get_operation',
-           side_effect=[
-               {'metadata': {'common': {'state': 'PROCESSING'}}},
-               {'metadata': {'common': {'state': 'NOT PROCESSING'}}}
-           ])
+    @patch(
+        'airflow.providers.google.cloud.hooks.datastore.DatastoreHook.get_operation',
+        side_effect=[
+            {'metadata': {'common': {'state': 'PROCESSING'}}},
+            {'metadata': {'common': {'state': 'NOT PROCESSING'}}},
+        ],
+    )
     def test_poll_operation_until_done(self, mock_get_operation, mock_time_sleep):
         name = 'name'
         polling_interval_in_seconds = 10
@@ -278,7 +294,7 @@ class TestDatastoreHook(unittest.TestCase):
 
         mock_get_operation.assert_has_calls([call(name), call(name)])
         mock_time_sleep.assert_called_once_with(polling_interval_in_seconds)
-        self.assertEqual(result, {'metadata': {'common': {'state': 'NOT PROCESSING'}}})
+        assert result == {'metadata': {'common': {'state': 'NOT PROCESSING'}}}
 
     @patch('airflow.providers.google.cloud.hooks.datastore.DatastoreHook.get_conn')
     def test_export_to_storage_bucket(self, mock_get_conn):
@@ -288,30 +304,34 @@ class TestDatastoreHook(unittest.TestCase):
         entity_filter = {}
         labels = {}
 
-        resp = self.datastore_hook.export_to_storage_bucket(bucket=bucket,
-                                                            namespace=namespace,
-                                                            entity_filter=entity_filter,
-                                                            labels=labels,
-                                                            project_id=GCP_PROJECT_ID
-                                                            )
+        resp = self.datastore_hook.export_to_storage_bucket(
+            bucket=bucket,
+            namespace=namespace,
+            entity_filter=entity_filter,
+            labels=labels,
+            project_id=GCP_PROJECT_ID,
+        )
 
         projects = self.datastore_hook.admin_connection.projects
         projects.assert_called_once_with()
         export = projects.return_value.export
-        export.assert_called_once_with(projectId=GCP_PROJECT_ID,
-                                       body={
-                                           'outputUrlPrefix': 'gs://' + '/'.join(
-                                               filter(None, [bucket, namespace])
-                                           ),
-                                           'entityFilter': entity_filter,
-                                           'labels': labels,
-                                       })
+        export.assert_called_once_with(
+            projectId=GCP_PROJECT_ID,
+            body={
+                'outputUrlPrefix': 'gs://' + '/'.join(filter(None, [bucket, namespace])),
+                'entityFilter': entity_filter,
+                'labels': labels,
+            },
+        )
         execute = export.return_value.execute
         execute.assert_called_once_with(num_retries=mock.ANY)
-        self.assertEqual(resp, execute.return_value)
+        assert resp == execute.return_value
 
-    @patch('airflow.providers.google.cloud.hooks.datastore.DatastoreHook.project_id',
-           new_callable=mock.PropertyMock, return_value=None)
+    @patch(
+        'airflow.providers.google.cloud.hooks.datastore.DatastoreHook.project_id',
+        new_callable=mock.PropertyMock,
+        return_value=None,
+    )
     @patch('airflow.providers.google.cloud.hooks.datastore.DatastoreHook.get_conn')
     def test_export_to_storage_bucket_no_project_id(self, mock_get_conn, mock_project_id):
         self.datastore_hook.admin_connection = mock_get_conn.return_value
@@ -320,14 +340,14 @@ class TestDatastoreHook(unittest.TestCase):
         entity_filter = {}
         labels = {}
 
-        with self.assertRaises(AirflowException) as err:
+        with pytest.raises(AirflowException) as ctx:
             self.datastore_hook.export_to_storage_bucket(  # pylint: disable=no-value-for-parameter
                 bucket=bucket,
                 namespace=namespace,
                 entity_filter=entity_filter,
                 labels=labels,
             )
-        self.assertIn("project_id", str(err.exception))
+        assert "project_id" in str(ctx.value)
 
     @patch('airflow.providers.google.cloud.hooks.datastore.DatastoreHook.get_conn')
     def test_import_from_storage_bucket(self, mock_get_conn):
@@ -338,31 +358,35 @@ class TestDatastoreHook(unittest.TestCase):
         entity_filter = {}
         labels = {}
 
-        resp = self.datastore_hook.import_from_storage_bucket(bucket=bucket,
-                                                              file=file,
-                                                              namespace=namespace,
-                                                              entity_filter=entity_filter,
-                                                              labels=labels,
-                                                              project_id=GCP_PROJECT_ID
-                                                              )
+        resp = self.datastore_hook.import_from_storage_bucket(
+            bucket=bucket,
+            file=file,
+            namespace=namespace,
+            entity_filter=entity_filter,
+            labels=labels,
+            project_id=GCP_PROJECT_ID,
+        )
 
         projects = self.datastore_hook.admin_connection.projects
         projects.assert_called_once_with()
         import_ = projects.return_value.import_
-        import_.assert_called_once_with(projectId=GCP_PROJECT_ID,
-                                        body={
-                                            'inputUrl': 'gs://' + '/'.join(
-                                                filter(None, [bucket, namespace, file])
-                                            ),
-                                            'entityFilter': entity_filter,
-                                            'labels': labels,
-                                        })
+        import_.assert_called_once_with(
+            projectId=GCP_PROJECT_ID,
+            body={
+                'inputUrl': 'gs://' + '/'.join(filter(None, [bucket, namespace, file])),
+                'entityFilter': entity_filter,
+                'labels': labels,
+            },
+        )
         execute = import_.return_value.execute
         execute.assert_called_once_with(num_retries=mock.ANY)
-        self.assertEqual(resp, execute.return_value)
+        assert resp == execute.return_value
 
-    @patch('airflow.providers.google.cloud.hooks.datastore.DatastoreHook.project_id',
-           new_callable=mock.PropertyMock, return_value=None)
+    @patch(
+        'airflow.providers.google.cloud.hooks.datastore.DatastoreHook.project_id',
+        new_callable=mock.PropertyMock,
+        return_value=None,
+    )
     @patch('airflow.providers.google.cloud.hooks.datastore.DatastoreHook.get_conn')
     def test_import_from_storage_bucket_no_project_id(self, mock_get_conn, mock_project_id):
         self.datastore_hook.admin_connection = mock_get_conn.return_value
@@ -372,7 +396,7 @@ class TestDatastoreHook(unittest.TestCase):
         entity_filter = {}
         labels = {}
 
-        with self.assertRaises(AirflowException) as err:
+        with pytest.raises(AirflowException) as ctx:
             self.datastore_hook.import_from_storage_bucket(  # pylint: disable=no-value-for-parameter
                 bucket=bucket,
                 file=file,
@@ -380,4 +404,4 @@ class TestDatastoreHook(unittest.TestCase):
                 entity_filter=entity_filter,
                 labels=labels,
             )
-        self.assertIn("project_id", str(err.exception))
+        assert "project_id" in str(ctx.value)

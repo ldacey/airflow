@@ -18,8 +18,8 @@
 #
 
 import datetime
+from unittest.mock import ANY, Mock, patch
 
-from mock import ANY, Mock, patch
 from pytest import raises
 from sqlalchemy.exc import OperationalError
 
@@ -32,9 +32,7 @@ from tests.test_utils.config import conf_vars
 
 
 class MockJob(BaseJob):
-    __mapper_args__ = {
-        'polymorphic_identity': 'MockJob'
-    }
+    __mapper_args__ = {'polymorphic_identity': 'MockJob'}
 
     def __init__(self, func, **kwargs):
         self.func = func
@@ -54,6 +52,7 @@ class TestBaseJob:
 
     def test_state_sysexit(self):
         import sys
+
         job = MockJob(lambda: sys.exit(0))
         job.run()
 
@@ -122,7 +121,7 @@ class TestBaseJob:
     @conf_vars({('scheduler', 'max_tis_per_query'): '100'})
     @patch('airflow.jobs.base_job.ExecutorLoader.get_default_executor')
     @patch('airflow.jobs.base_job.get_hostname')
-    @patch('airflow.jobs.base_job.getpass.getuser')
+    @patch('airflow.jobs.base_job.getuser')
     def test_essential_attr(self, mock_getuser, mock_hostname, mock_default_executor):
         mock_sequential_executor = SequentialExecutor()
         mock_hostname.return_value = "test_hostname"

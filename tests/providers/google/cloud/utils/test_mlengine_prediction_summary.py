@@ -18,9 +18,10 @@
 import base64
 import binascii
 import unittest
+from unittest import mock
 
 import dill
-import mock
+import pytest
 
 try:
     from airflow.providers.google.cloud.utils import mlengine_prediction_summary
@@ -31,10 +32,10 @@ except ImportError as e:
 
 class TestJsonCode(unittest.TestCase):
     def test_encode(self):
-        self.assertEqual(b'{"a": 1}', mlengine_prediction_summary.JsonCoder.encode({'a': 1}))
+        assert b'{"a": 1}' == mlengine_prediction_summary.JsonCoder.encode({'a': 1})
 
     def test_decode(self):
-        self.assertEqual({'a': 1}, mlengine_prediction_summary.JsonCoder.decode('{"a": 1}'))
+        assert {'a': 1} == mlengine_prediction_summary.JsonCoder.decode('{"a": 1}')
 
 
 class TestMakeSummary(unittest.TestCase):
@@ -42,38 +43,46 @@ class TestMakeSummary(unittest.TestCase):
         print(mlengine_prediction_summary.MakeSummary(1, lambda x: x, []))
 
     def test_run_without_all_arguments_should_raise_exception(self):
-        with self.assertRaises(SystemExit):
+        with pytest.raises(SystemExit):
             mlengine_prediction_summary.run()
 
-        with self.assertRaises(SystemExit):
-            mlengine_prediction_summary.run([
-                "--prediction_path=some/path",
-            ])
+        with pytest.raises(SystemExit):
+            mlengine_prediction_summary.run(
+                [
+                    "--prediction_path=some/path",
+                ]
+            )
 
-        with self.assertRaises(SystemExit):
-            mlengine_prediction_summary.run([
-                "--prediction_path=some/path",
-                "--metric_fn_encoded=encoded_text",
-            ])
+        with pytest.raises(SystemExit):
+            mlengine_prediction_summary.run(
+                [
+                    "--prediction_path=some/path",
+                    "--metric_fn_encoded=encoded_text",
+                ]
+            )
 
     def test_run_should_fail_for_invalid_encoded_fn(self):
-        with self.assertRaises(binascii.Error):
-            mlengine_prediction_summary.run([
-                "--prediction_path=some/path",
-                "--metric_fn_encoded=invalid_encoded_text",
-                "--metric_keys=a",
-            ])
+        with pytest.raises(binascii.Error):
+            mlengine_prediction_summary.run(
+                [
+                    "--prediction_path=some/path",
+                    "--metric_fn_encoded=invalid_encoded_text",
+                    "--metric_keys=a",
+                ]
+            )
 
     def test_run_should_fail_if_enc_fn_is_not_callable(self):
         non_callable_value = 1
         fn_enc = base64.b64encode(dill.dumps(non_callable_value)).decode('utf-8')
 
-        with self.assertRaises(ValueError):
-            mlengine_prediction_summary.run([
-                "--prediction_path=some/path",
-                "--metric_fn_encoded=" + fn_enc,
-                "--metric_keys=a",
-            ])
+        with pytest.raises(ValueError):
+            mlengine_prediction_summary.run(
+                [
+                    "--prediction_path=some/path",
+                    "--metric_fn_encoded=" + fn_enc,
+                    "--metric_keys=a",
+                ]
+            )
 
     @mock.patch.object(mlengine_prediction_summary.beam.pipeline, "PipelineOptions")
     @mock.patch.object(mlengine_prediction_summary.beam, "Pipeline")
@@ -84,11 +93,13 @@ class TestMakeSummary(unittest.TestCase):
 
         fn_enc = base64.b64encode(dill.dumps(metric_function)).decode('utf-8')
 
-        mlengine_prediction_summary.run([
-            "--prediction_path=some/path",
-            "--metric_fn_encoded=" + fn_enc,
-            "--metric_keys=a",
-        ])
+        mlengine_prediction_summary.run(
+            [
+                "--prediction_path=some/path",
+                "--metric_fn_encoded=" + fn_enc,
+                "--metric_keys=a",
+            ]
+        )
 
         pipeline_mock.assert_called_once_with([])
         pipeline_obj_mock.assert_called_once()

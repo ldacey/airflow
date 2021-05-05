@@ -30,7 +30,8 @@ class PostgresOperator(BaseOperator):
     :type sql: Can receive a str representing a sql statement,
         a list of str (sql statements), or reference to a template file.
         Template reference are recognized by str ending in '.sql'
-    :param postgres_conn_id: reference to a specific postgres database
+    :param postgres_conn_id: The :ref:`postgres conn id <howto/connection:postgres>`
+        reference to a specific postgres database.
     :type postgres_conn_id: str
     :param autocommit: if True, each command is automatically committed.
         (default value: False)
@@ -42,18 +43,21 @@ class PostgresOperator(BaseOperator):
     """
 
     template_fields = ('sql',)
+    template_fields_renderers = {'sql': 'sql'}
     template_ext = ('.sql',)
     ui_color = '#ededed'
 
     @apply_defaults
     def __init__(
-            self, *,
-            sql: str,
-            postgres_conn_id: str = 'postgres_default',
-            autocommit: bool = False,
-            parameters: Optional[Union[Mapping, Iterable]] = None,
-            database: Optional[str] = None,
-            **kwargs) -> None:
+        self,
+        *,
+        sql: str,
+        postgres_conn_id: str = 'postgres_default',
+        autocommit: bool = False,
+        parameters: Optional[Union[Mapping, Iterable]] = None,
+        database: Optional[str] = None,
+        **kwargs,
+    ) -> None:
         super().__init__(**kwargs)
         self.sql = sql
         self.postgres_conn_id = postgres_conn_id
@@ -64,8 +68,7 @@ class PostgresOperator(BaseOperator):
 
     def execute(self, context):
         self.log.info('Executing: %s', self.sql)
-        self.hook = PostgresHook(postgres_conn_id=self.postgres_conn_id,
-                                 schema=self.database)
+        self.hook = PostgresHook(postgres_conn_id=self.postgres_conn_id, schema=self.database)
         self.hook.run(self.sql, self.autocommit, parameters=self.parameters)
         for output in self.hook.conn.notices:
             self.log.info(output)

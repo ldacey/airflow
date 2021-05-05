@@ -17,8 +17,9 @@
 # under the License.
 
 import unittest
+from unittest.mock import ANY, Mock, PropertyMock, patch
 
-from mock import ANY, Mock, PropertyMock, patch
+import pytest
 from parameterized import parameterized
 
 from airflow.exceptions import AirflowException
@@ -26,6 +27,7 @@ from airflow.providers.google.cloud.operators.text_to_speech import CloudTextToS
 
 PROJECT_ID = "project-id"
 GCP_CONN_ID = "gcp-conn-id"
+IMPERSONATION_CHAIN = ["ACCOUNT_1", "ACCOUNT_2", "ACCOUNT_3"]
 INPUT = {"text": "text"}
 VOICE = {"language_code": "en-US"}
 AUDIO_CONFIG = {"audio_encoding": "MP3"}
@@ -52,10 +54,17 @@ class TestGcpTextToSpeech(unittest.TestCase):
             target_bucket_name=TARGET_BUCKET_NAME,
             target_filename=TARGET_FILENAME,
             task_id="id",
+            impersonation_chain=IMPERSONATION_CHAIN,
         ).execute(context={"task_instance": Mock()})
 
-        mock_text_to_speech_hook.assert_called_once_with(gcp_conn_id="gcp-conn-id")
-        mock_gcp_hook.assert_called_once_with(google_cloud_storage_conn_id="gcp-conn-id")
+        mock_text_to_speech_hook.assert_called_once_with(
+            gcp_conn_id="gcp-conn-id",
+            impersonation_chain=IMPERSONATION_CHAIN,
+        )
+        mock_gcp_hook.assert_called_once_with(
+            gcp_conn_id="gcp-conn-id",
+            impersonation_chain=IMPERSONATION_CHAIN,
+        )
         mock_text_to_speech_hook.return_value.synthesize_speech.assert_called_once_with(
             input_data=INPUT, voice=VOICE, audio_config=AUDIO_CONFIG, retry=None, timeout=None
         )
@@ -85,7 +94,7 @@ class TestGcpTextToSpeech(unittest.TestCase):
         mock_text_to_speech_hook,
         mock_gcp_hook,
     ):
-        with self.assertRaises(AirflowException) as e:
+        with pytest.raises(AirflowException) as ctx:
             CloudTextToSpeechSynthesizeOperator(
                 project_id="project-id",
                 input_data=input_data,
@@ -96,7 +105,7 @@ class TestGcpTextToSpeech(unittest.TestCase):
                 task_id="id",
             ).execute(context={"task_instance": Mock()})
 
-        err = e.exception
-        self.assertIn(missing_arg, str(err))
+        err = ctx.value
+        assert missing_arg in str(err)
         mock_text_to_speech_hook.assert_not_called()
         mock_gcp_hook.assert_not_called()

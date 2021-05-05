@@ -21,6 +21,7 @@ from os.path import basename
 from tempfile import NamedTemporaryFile
 from time import sleep
 
+import pytest
 import requests
 
 from airflow.configuration import conf
@@ -29,6 +30,7 @@ from airflow.utils.serve_logs import serve_logs
 LOG_DATA = "Airflow log data" * 20
 
 
+@pytest.mark.quarantined
 class TestServeLogs(unittest.TestCase):
     def test_should_serve_file(self):
         log_dir = os.path.expanduser(conf.get('logging', 'BASE_LOG_FOLDER'))
@@ -40,5 +42,5 @@ class TestServeLogs(unittest.TestCase):
             sub_proc.start()
             sleep(1)
             log_url = f"http://localhost:{log_port}/log/{basename(f.name)}"
-            self.assertEqual(LOG_DATA, requests.get(log_url).content.decode())
+            assert LOG_DATA == requests.get(log_url).content.decode()
             sub_proc.terminate()

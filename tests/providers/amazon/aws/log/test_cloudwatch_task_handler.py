@@ -18,12 +18,12 @@
 
 import unittest
 from unittest import mock
-from unittest.mock import call
+from unittest.mock import ANY, call
 
 from watchtower import CloudWatchLogHandler
 
 from airflow.models import DAG, TaskInstance
-from airflow.operators.dummy_operator import DummyOperator
+from airflow.operators.dummy import DummyOperator
 from airflow.providers.amazon.aws.hooks.logs import AwsLogsHook
 from airflow.utils.log.cloudwatch_task_handler import CloudwatchTaskHandler
 from airflow.utils.state import State
@@ -38,11 +38,9 @@ except ImportError:
     mock_logs = None
 
 
-@unittest.skipIf(mock_logs is None,
-                 "Skipping test because moto.mock_logs is not available")
+@unittest.skipIf(mock_logs is None, "Skipping test because moto.mock_logs is not available")
 @mock_logs
 class TestCloudwatchTaskHandler(unittest.TestCase):
-
     @conf_vars({('logging', 'remote_log_conn_id'): 'aws_default'})
     def setUp(self):
         self.remote_log_group = 'log_group_name'
@@ -51,8 +49,8 @@ class TestCloudwatchTaskHandler(unittest.TestCase):
         self.filename_template = '{dag_id}/{task_id}/{execution_date}/{try_number}.log'
         self.cloudwatch_task_handler = CloudwatchTaskHandler(
             self.local_log_location,
-            "arn:aws:logs:{}:11111111:log-group:{}".format(self.region_name, self.remote_log_group),
-            self.filename_template
+            f"arn:aws:logs:{self.region_name}:11111111:log-group:{self.remote_log_group}",
+            self.filename_template,
         )
         self.cloudwatch_task_handler.hook
 
@@ -76,14 +74,14 @@ class TestCloudwatchTaskHandler(unittest.TestCase):
         self.cloudwatch_task_handler.handler = None
 
     def test_hook(self):
-        self.assertIsInstance(self.cloudwatch_task_handler.hook, AwsLogsHook)
+        assert isinstance(self.cloudwatch_task_handler.hook, AwsLogsHook)
 
     @conf_vars({('logging', 'remote_log_conn_id'): 'aws_default'})
     def test_hook_raises(self):
         handler = CloudwatchTaskHandler(
             self.local_log_location,
-            "arn:aws:logs:{}:11111111:log-group:{}".format(self.region_name, self.remote_log_group),
-            self.filename_template
+            f"arn:aws:logs:{self.region_name}:11111111:log-group:{self.remote_log_group}",
+            self.filename_template,
         )
 
         with mock.patch.object(handler.log, 'error') as mock_error:
@@ -94,13 +92,15 @@ class TestCloudwatchTaskHandler(unittest.TestCase):
 
             mock_error.assert_called_once_with(
                 'Could not create an AwsLogsHook with connection id "%s". Please make '
-                'sure that airflow[aws] is installed and the Cloudwatch logs connection exists.',
-                'aws_default'
+                'sure that apache-airflow[aws] is installed and the Cloudwatch '
+                'logs connection exists. Exception: "%s"',
+                'aws_default',
+                ANY,
             )
 
     def test_handler(self):
         self.cloudwatch_task_handler.set_context(self.ti)
-        self.assertIsInstance(self.cloudwatch_task_handler.handler, CloudWatchLogHandler)
+        assert isinstance(self.cloudwatch_task_handler.handler, CloudWatchLogHandler)
 
     def test_write(self):
         handler = self.cloudwatch_task_handler
@@ -113,31 +113,27 @@ class TestCloudwatchTaskHandler(unittest.TestCase):
             mock_emit.assert_has_calls([call(message) for message in messages])
 
     def test_read(self):
+        # Confirmed via AWS Support call:
+        # CloudWatch events must be ordered chronologically otherwise
+        # boto3 put_log_event API throws InvalidParameterException
+        # (moto does not throw this exception)
         generate_log_events(
             self.conn,
             self.remote_log_group,
             self.remote_log_stream,
             [
-                {
-                    'timestamp': 20000,
-                    'message': 'Second'
-                },
-                {
-                    'timestamp': 10000,
-                    'message': 'First'
-                },
-                {
-                    'timestamp': 30000,
-                    'message': 'Third'
-                },
-            ]
+                {'timestamp': 10000, 'message': 'First'},
+                {'timestamp': 20000, 'message': 'Second'},
+                {'timestamp': 30000, 'message': 'Third'},
+            ],
         )
 
-        expected = '*** Reading remote log from Cloudwatch log_group: {} ' \
-                   'log_stream: {}.\nFirst\nSecond\nThird\n'
-        self.assertEqual(
-            self.cloudwatch_task_handler.read(self.ti),
-            ([expected.format(self.remote_log_group, self.remote_log_stream)], [{'end_of_log': True}])
+        expected = (
+            '*** Reading remote log from Cloudwatch log_group: {} log_stream: {}.\nFirst\nSecond\nThird\n'
+        )
+        assert self.cloudwatch_task_handler.read(self.ti) == (
+            [[('', expected.format(self.remote_log_group, self.remote_log_stream))]],
+            [{'end_of_log': True}],
         )
 
     def test_read_wrong_log_stream(self):
@@ -146,33 +142,19 @@ class TestCloudwatchTaskHandler(unittest.TestCase):
             self.remote_log_group,
             'alternate_log_stream',
             [
-                {
-                    'timestamp': 20000,
-                    'message': 'Second'
-                },
-                {
-                    'timestamp': 10000,
-                    'message': 'First'
-                },
-                {
-                    'timestamp': 30000,
-                    'message': 'Third'
-                },
-            ]
+                {'timestamp': 10000, 'message': 'First'},
+                {'timestamp': 20000, 'message': 'Second'},
+                {'timestamp': 30000, 'message': 'Third'},
+            ],
         )
 
-        msg_template = '*** Reading remote log from Cloudwatch log_group: {} ' \
-                       'log_stream: {}.\n{}\n'
+        msg_template = '*** Reading remote log from Cloudwatch log_group: {} log_stream: {}.\n{}\n'
         error_msg = 'Could not read remote logs from log_group: {} log_stream: {}.'.format(
-            self.remote_log_group,
-            self.remote_log_stream
+            self.remote_log_group, self.remote_log_stream
         )
-        self.assertEqual(
-            self.cloudwatch_task_handler.read(self.ti),
-            ([msg_template.format(
-                self.remote_log_group,
-                self.remote_log_stream, error_msg)],
-             [{'end_of_log': True}])
+        assert self.cloudwatch_task_handler.read(self.ti) == (
+            [[('', msg_template.format(self.remote_log_group, self.remote_log_stream, error_msg))]],
+            [{'end_of_log': True}],
         )
 
     def test_read_wrong_log_group(self):
@@ -181,32 +163,19 @@ class TestCloudwatchTaskHandler(unittest.TestCase):
             'alternate_log_group',
             self.remote_log_stream,
             [
-                {
-                    'timestamp': 20000,
-                    'message': 'Second'
-                },
-                {
-                    'timestamp': 10000,
-                    'message': 'First'
-                },
-                {
-                    'timestamp': 30000,
-                    'message': 'Third'
-                },
-            ]
+                {'timestamp': 10000, 'message': 'First'},
+                {'timestamp': 20000, 'message': 'Second'},
+                {'timestamp': 30000, 'message': 'Third'},
+            ],
         )
 
         msg_template = '*** Reading remote log from Cloudwatch log_group: {} log_stream: {}.\n{}\n'
         error_msg = 'Could not read remote logs from log_group: {} log_stream: {}.'.format(
-            self.remote_log_group,
-            self.remote_log_stream
+            self.remote_log_group, self.remote_log_stream
         )
-        self.assertEqual(
-            self.cloudwatch_task_handler.read(self.ti),
-            ([msg_template.format(
-                self.remote_log_group,
-                self.remote_log_stream, error_msg)],
-             [{'end_of_log': True}])
+        assert self.cloudwatch_task_handler.read(self.ti) == (
+            [[('', msg_template.format(self.remote_log_group, self.remote_log_stream, error_msg))]],
+            [{'end_of_log': True}],
         )
 
     def test_close_prevents_duplicate_calls(self):
@@ -221,12 +190,5 @@ class TestCloudwatchTaskHandler(unittest.TestCase):
 
 def generate_log_events(conn, log_group_name, log_stream_name, log_events):
     conn.create_log_group(logGroupName=log_group_name)
-    conn.create_log_stream(
-        logGroupName=log_group_name,
-        logStreamName=log_stream_name
-    )
-    conn.put_log_events(
-        logGroupName=log_group_name,
-        logStreamName=log_stream_name,
-        logEvents=log_events
-    )
+    conn.create_log_stream(logGroupName=log_group_name, logStreamName=log_stream_name)
+    conn.put_log_events(logGroupName=log_group_name, logStreamName=log_stream_name, logEvents=log_events)

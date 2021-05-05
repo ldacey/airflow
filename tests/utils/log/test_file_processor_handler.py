@@ -37,33 +37,32 @@ class TestFileProcessorHandler(unittest.TestCase):
 
     def test_non_template(self):
         date = timezone.utcnow().strftime("%Y-%m-%d")
-        handler = FileProcessorHandler(base_log_folder=self.base_log_folder,
-                                       filename_template=self.filename)
+        handler = FileProcessorHandler(base_log_folder=self.base_log_folder, filename_template=self.filename)
         handler.dag_dir = self.dag_dir
 
         path = os.path.join(self.base_log_folder, "latest")
-        self.assertTrue(os.path.islink(path))
-        self.assertEqual(os.path.basename(os.readlink(path)), date)
+        assert os.path.islink(path)
+        assert os.path.basename(os.readlink(path)) == date
 
         handler.set_context(filename=os.path.join(self.dag_dir, "logfile"))
-        self.assertTrue(os.path.exists(os.path.join(path, "logfile")))
+        assert os.path.exists(os.path.join(path, "logfile"))
 
     def test_template(self):
         date = timezone.utcnow().strftime("%Y-%m-%d")
-        handler = FileProcessorHandler(base_log_folder=self.base_log_folder,
-                                       filename_template=self.filename_template)
+        handler = FileProcessorHandler(
+            base_log_folder=self.base_log_folder, filename_template=self.filename_template
+        )
         handler.dag_dir = self.dag_dir
 
         path = os.path.join(self.base_log_folder, "latest")
-        self.assertTrue(os.path.islink(path))
-        self.assertEqual(os.path.basename(os.readlink(path)), date)
+        assert os.path.islink(path)
+        assert os.path.basename(os.readlink(path)) == date
 
         handler.set_context(filename=os.path.join(self.dag_dir, "logfile"))
-        self.assertTrue(os.path.exists(os.path.join(path, "logfile.log")))
+        assert os.path.exists(os.path.join(path, "logfile.log"))
 
     def test_symlink_latest_log_directory(self):
-        handler = FileProcessorHandler(base_log_folder=self.base_log_folder,
-                                       filename_template=self.filename)
+        handler = FileProcessorHandler(base_log_folder=self.base_log_folder, filename_template=self.filename)
         handler.dag_dir = self.dag_dir
 
         date1 = (timezone.utcnow() + timedelta(days=1)).strftime("%Y-%m-%d")
@@ -81,19 +80,18 @@ class TestFileProcessorHandler(unittest.TestCase):
 
         with freeze_time(date1):
             handler.set_context(filename=os.path.join(self.dag_dir, "log1"))
-            self.assertTrue(os.path.islink(link))
-            self.assertEqual(os.path.basename(os.readlink(link)), date1)
-            self.assertTrue(os.path.exists(os.path.join(link, "log1")))
+            assert os.path.islink(link)
+            assert os.path.basename(os.readlink(link)) == date1
+            assert os.path.exists(os.path.join(link, "log1"))
 
         with freeze_time(date2):
             handler.set_context(filename=os.path.join(self.dag_dir, "log2"))
-            self.assertTrue(os.path.islink(link))
-            self.assertEqual(os.path.basename(os.readlink(link)), date2)
-            self.assertTrue(os.path.exists(os.path.join(link, "log2")))
+            assert os.path.islink(link)
+            assert os.path.basename(os.readlink(link)) == date2
+            assert os.path.exists(os.path.join(link, "log2"))
 
     def test_symlink_latest_log_directory_exists(self):
-        handler = FileProcessorHandler(base_log_folder=self.base_log_folder,
-                                       filename_template=self.filename)
+        handler = FileProcessorHandler(base_log_folder=self.base_log_folder, filename_template=self.filename)
         handler.dag_dir = self.dag_dir
 
         date1 = (timezone.utcnow() + timedelta(days=1)).strftime("%Y-%m-%d")

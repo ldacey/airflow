@@ -15,13 +15,13 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""
-This module contains SFTP sensor.
-"""
+"""This module contains SFTP sensor."""
+from typing import Optional
+
 from paramiko import SFTP_NO_SUCH_FILE
 
 from airflow.providers.sftp.hooks.sftp import SFTPHook
-from airflow.sensors.base_sensor_operator import BaseSensorOperator
+from airflow.sensors.base import BaseSensorOperator
 from airflow.utils.decorators import apply_defaults
 
 
@@ -34,20 +34,22 @@ class SFTPSensor(BaseSensorOperator):
     :param sftp_conn_id: The connection to run the sensor against
     :type sftp_conn_id: str
     """
+
     template_fields = ('path',)
 
     @apply_defaults
-    def __init__(self, *, path, sftp_conn_id='sftp_default', **kwargs):
+    def __init__(self, *, path: str, sftp_conn_id: str = 'sftp_default', **kwargs) -> None:
         super().__init__(**kwargs)
         self.path = path
-        self.hook = None
+        self.hook: Optional[SFTPHook] = None
         self.sftp_conn_id = sftp_conn_id
 
-    def poke(self, context):
+    def poke(self, context: dict) -> bool:
         self.hook = SFTPHook(self.sftp_conn_id)
         self.log.info('Poking for %s', self.path)
         try:
-            self.hook.get_mod_time(self.path)
+            mod_time = self.hook.get_mod_time(self.path)
+            self.log.info('Found File %s last modified: %s', str(self.path), str(mod_time))
         except OSError as e:
             if e.errno != SFTP_NO_SUCH_FILE:
                 raise e

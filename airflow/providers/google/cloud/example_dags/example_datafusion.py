@@ -18,15 +18,21 @@
 """
 Example Airflow DAG that shows how to use DataFusion.
 """
+import os
 
 from airflow import models
 from airflow.operators.bash import BashOperator
 from airflow.providers.google.cloud.operators.datafusion import (
-    CloudDataFusionCreateInstanceOperator, CloudDataFusionCreatePipelineOperator,
-    CloudDataFusionDeleteInstanceOperator, CloudDataFusionDeletePipelineOperator,
-    CloudDataFusionGetInstanceOperator, CloudDataFusionListPipelinesOperator,
-    CloudDataFusionRestartInstanceOperator, CloudDataFusionStartPipelineOperator,
-    CloudDataFusionStopPipelineOperator, CloudDataFusionUpdateInstanceOperator,
+    CloudDataFusionCreateInstanceOperator,
+    CloudDataFusionCreatePipelineOperator,
+    CloudDataFusionDeleteInstanceOperator,
+    CloudDataFusionDeletePipelineOperator,
+    CloudDataFusionGetInstanceOperator,
+    CloudDataFusionListPipelinesOperator,
+    CloudDataFusionRestartInstanceOperator,
+    CloudDataFusionStartPipelineOperator,
+    CloudDataFusionStopPipelineOperator,
+    CloudDataFusionUpdateInstanceOperator,
 )
 from airflow.utils import dates
 from airflow.utils.state import State
@@ -36,9 +42,13 @@ LOCATION = "europe-north1"
 INSTANCE_NAME = "airflow-test-instance"
 INSTANCE = {"type": "BASIC", "displayName": INSTANCE_NAME}
 
-BUCKET1 = "gs://test-bucket--2h83r23r"
-BUCKET2 = "gs://test-bucket--2d23h83r23r"
-PIPELINE_NAME = "airflow_test"
+BUCKET_1 = os.environ.get("GCP_DATAFUSION_BUCKET_1", "test-datafusion-bucket-1")
+BUCKET_2 = os.environ.get("GCP_DATAFUSION_BUCKET_2", "test-datafusion-bucket-2")
+
+BUCKET_1_URI = f"gs//{BUCKET_1}"
+BUCKET_2_URI = f"gs//{BUCKET_2}"
+
+PIPELINE_NAME = os.environ.get("GCP_DATAFUSION_PIPELINE_NAME", "airflow_test")
 PIPELINE = {
     "name": "test-pipe",
     "description": "Data Pipeline Application",
@@ -73,8 +83,8 @@ PIPELINE = {
                         "recursive": "false",
                         "encrypted": "false",
                         "schema": '{"type":"record","name":"etlSchemaBody","fields":'
-                                  '[{"name":"offset","type":"long"},{"name":"body","type":"string"}]}',
-                        "path": BUCKET1,
+                        '[{"name":"offset","type":"long"},{"name":"body","type":"string"}]}',
+                        "path": BUCKET_1_URI,
                         "referenceName": "foo_bucket",
                     },
                 },
@@ -82,7 +92,7 @@ PIPELINE = {
                     {
                         "name": "etlSchemaBody",
                         "schema": '{"type":"record","name":"etlSchemaBody","fields":'
-                                  '[{"name":"offset","type":"long"},{"name":"body","type":"string"}]}',
+                        '[{"name":"offset","type":"long"},{"name":"body","type":"string"}]}',
                     }
                 ],
             },
@@ -104,23 +114,23 @@ PIPELINE = {
                         "serviceFilePath": "auto-detect",
                         "location": "us",
                         "schema": '{"type":"record","name":"etlSchemaBody","fields":'
-                                  '[{"name":"offset","type":"long"},{"name":"body","type":"string"}]}',
+                        '[{"name":"offset","type":"long"},{"name":"body","type":"string"}]}',
                         "referenceName": "bar",
-                        "path": BUCKET2,
+                        "path": BUCKET_2_URI,
                     },
                 },
                 "outputSchema": [
                     {
                         "name": "etlSchemaBody",
                         "schema": '{"type":"record","name":"etlSchemaBody","fields":'
-                                  '[{"name":"offset","type":"long"},{"name":"body","type":"string"}]}',
+                        '[{"name":"offset","type":"long"},{"name":"body","type":"string"}]}',
                     }
                 ],
                 "inputSchema": [
                     {
                         "name": "GCS",
                         "schema": '{"type":"record","name":"etlSchemaBody","fields":'
-                                  '[{"name":"offset","type":"long"},{"name":"body","type":"string"}]}',
+                        '[{"name":"offset","type":"long"},{"name":"body","type":"string"}]}',
                     }
                 ],
             },
@@ -137,7 +147,7 @@ PIPELINE = {
 with models.DAG(
     "example_data_fusion",
     schedule_interval=None,  # Override to match your needs
-    start_date=dates.days_ago(1)
+    start_date=dates.days_ago(1),
 ) as dag:
     # [START howto_cloud_data_fusion_create_instance_operator]
     create_instance = CloudDataFusionCreateInstanceOperator(

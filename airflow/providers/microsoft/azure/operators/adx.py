@@ -18,10 +18,11 @@
 #
 
 """This module contains Azure Data Explorer operators"""
-from typing import Any, Dict, Optional
+from typing import Optional, Union
 
 from azure.kusto.data._models import KustoResultTable
 
+from airflow.configuration import conf
 from airflow.models import BaseOperator
 from airflow.providers.microsoft.azure.hooks.adx import AzureDataExplorerHook
 from airflow.utils.decorators import apply_defaults
@@ -38,22 +39,25 @@ class AzureDataExplorerQueryOperator(BaseOperator):
     :param options: Optional query options. See:
       https://docs.microsoft.com/en-us/azure/kusto/api/netfx/request-properties#list-of-clientrequestproperties
     :type options: dict
-    :param azure_data_explorer_conn_id: Azure Data Explorer connection to use.
+    :param azure_data_explorer_conn_id: Reference to the
+        :ref:`Azure Data Explorer connection<howto/connection:adx>`.
     :type azure_data_explorer_conn_id: str
     """
 
     ui_color = '#00a1f2'
     template_fields = ('query', 'database')
-    template_ext = ('.kql', )
+    template_ext = ('.kql',)
 
     @apply_defaults
     def __init__(
-            self, *,
-            query: str,
-            database: str,
-            options: Optional[Dict] = None,
-            azure_data_explorer_conn_id: str = 'azure_data_explorer_default',
-            **kwargs) -> None:
+        self,
+        *,
+        query: str,
+        database: str,
+        options: Optional[dict] = None,
+        azure_data_explorer_conn_id: str = 'azure_data_explorer_default',
+        **kwargs,
+    ) -> None:
         super().__init__(**kwargs)
         self.query = query
         self.database = database
@@ -64,7 +68,7 @@ class AzureDataExplorerQueryOperator(BaseOperator):
         """Returns new instance of AzureDataExplorerHook"""
         return AzureDataExplorerHook(self.azure_data_explorer_conn_id)
 
-    def execute(self, context: Dict[Any, Any]) -> KustoResultTable:
+    def execute(self, context: dict) -> Union[KustoResultTable, str]:
         """
         Run KQL Query on Azure Data Explorer (Kusto).
         Returns `PrimaryResult` of Query v2 HTTP response contents
@@ -72,4 +76,7 @@ class AzureDataExplorerQueryOperator(BaseOperator):
         """
         hook = self.get_hook()
         response = hook.run_query(self.query, self.database, self.options)
-        return response.primary_results[0]
+        if conf.getboolean('core', 'enable_xcom_pickling'):
+            return response.primary_results[0]
+        else:
+            return str(response.primary_results[0])

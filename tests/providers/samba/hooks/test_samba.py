@@ -17,9 +17,10 @@
 # under the License.
 
 import unittest
+from unittest import mock
 from unittest.mock import call
 
-import mock
+import pytest
 import smbclient
 
 from airflow.exceptions import AirflowException
@@ -31,21 +32,22 @@ connection = Connection(host='ip', schema='share', login='username', password='p
 
 class TestSambaHook(unittest.TestCase):
     def test_get_conn_should_fail_if_conn_id_does_not_exist(self):
-        with self.assertRaises(AirflowException):
+        with pytest.raises(AirflowException):
             SambaHook('conn')
 
-    @mock.patch('airflow.hooks.base_hook.BaseHook.get_connection')
+    @mock.patch('airflow.hooks.base.BaseHook.get_connection')
     def test_get_conn(self, get_conn_mock):
         get_conn_mock.return_value = connection
         hook = SambaHook('samba_default')
 
-        self.assertEqual(smbclient.SambaClient, type(hook.get_conn()))
+        assert isinstance(hook.get_conn(), smbclient.SambaClient)
         get_conn_mock.assert_called_once_with('samba_default')
 
     @mock.patch('airflow.providers.samba.hooks.samba.SambaHook.get_conn')
-    @mock.patch('airflow.hooks.base_hook.BaseHook.get_connection')
-    def test_push_from_local_should_succeed_if_destination_has_same_name_but_not_a_file(self, base_conn_mock,
-                                                                                        samba_hook_mock):
+    @mock.patch('airflow.hooks.base.BaseHook.get_connection')
+    def test_push_from_local_should_succeed_if_destination_has_same_name_but_not_a_file(
+        self, base_conn_mock, samba_hook_mock
+    ):
         base_conn_mock.return_value = connection
         samba_hook_mock.get_conn.return_value = mock.Mock()
 
@@ -66,9 +68,10 @@ class TestSambaHook(unittest.TestCase):
         samba_hook_mock.return_value.upload.assert_called_once_with(local_filepath, destination_filepath)
 
     @mock.patch('airflow.providers.samba.hooks.samba.SambaHook.get_conn')
-    @mock.patch('airflow.hooks.base_hook.BaseHook.get_connection')
-    def test_push_from_local_should_delete_file_if_exists_and_save_file(self, base_conn_mock,
-                                                                        samba_hook_mock):
+    @mock.patch('airflow.hooks.base.BaseHook.get_connection')
+    def test_push_from_local_should_delete_file_if_exists_and_save_file(
+        self, base_conn_mock, samba_hook_mock
+    ):
         base_conn_mock.return_value = connection
         samba_hook_mock.get_conn.return_value = mock.Mock()
 
@@ -83,17 +86,19 @@ class TestSambaHook(unittest.TestCase):
 
         base_conn_mock.assert_called_once_with('samba_default')
         samba_hook_mock.assert_called_once()
-        samba_hook_mock.return_value.exists.assert_has_calls([call(destination_filepath),
-                                                              call(destination_folder)])
+        samba_hook_mock.return_value.exists.assert_has_calls(
+            [call(destination_filepath), call(destination_folder)]
+        )
         samba_hook_mock.return_value.isfile.assert_not_called()
         samba_hook_mock.return_value.remove.assert_not_called()
         samba_hook_mock.return_value.mkdir.assert_called_once_with(destination_folder)
         samba_hook_mock.return_value.upload.assert_called_once_with(local_filepath, destination_filepath)
 
     @mock.patch('airflow.providers.samba.hooks.samba.SambaHook.get_conn')
-    @mock.patch('airflow.hooks.base_hook.BaseHook.get_connection')
-    def test_push_from_local_should_create_directory_if_not_exist_and_save_file(self, base_conn_mock,
-                                                                                samba_hook_mock):
+    @mock.patch('airflow.hooks.base.BaseHook.get_connection')
+    def test_push_from_local_should_create_directory_if_not_exist_and_save_file(
+        self, base_conn_mock, samba_hook_mock
+    ):
         base_conn_mock.return_value = connection
         samba_hook_mock.get_conn.return_value = mock.Mock()
 
@@ -108,8 +113,9 @@ class TestSambaHook(unittest.TestCase):
 
         base_conn_mock.assert_called_once_with('samba_default')
         samba_hook_mock.assert_called_once()
-        samba_hook_mock.return_value.exists.assert_has_calls([call(destination_filepath),
-                                                              call(destination_folder)])
+        samba_hook_mock.return_value.exists.assert_has_calls(
+            [call(destination_filepath), call(destination_folder)]
+        )
         samba_hook_mock.return_value.isfile.assert_not_called()
         samba_hook_mock.return_value.remove.assert_not_called()
         samba_hook_mock.return_value.mkdir.assert_called_once_with(destination_folder)

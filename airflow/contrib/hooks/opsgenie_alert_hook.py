@@ -15,7 +15,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""This module is deprecated. Please use `airflow.providers.opsgenie.hooks.opsgenie_alert`."""
+"""This module is deprecated. Please use :mod:`airflow.providers.opsgenie.hooks.opsgenie_alert`."""
 
 import warnings
 
@@ -24,5 +24,6 @@ from airflow.providers.opsgenie.hooks.opsgenie_alert import OpsgenieAlertHook  #
 
 warnings.warn(
     "This module is deprecated. Please use `airflow.providers.opsgenie.hooks.opsgenie_alert`.",
-    DeprecationWarning, stacklevel=2
+    DeprecationWarning,
+    stacklevel=2,
 )

@@ -26,7 +26,6 @@ from airflow.providers.amazon.aws.operators.ec2_start_instance import EC2StartIn
 
 
 class TestEC2Operator(unittest.TestCase):
-
     def test_init(self):
         ec2_operator = EC2StartInstanceOperator(
             task_id="task_test",
@@ -35,11 +34,11 @@ class TestEC2Operator(unittest.TestCase):
             region_name="region-test",
             check_interval=3,
         )
-        self.assertEqual(ec2_operator.task_id, "task_test")
-        self.assertEqual(ec2_operator.instance_id, "i-123abc")
-        self.assertEqual(ec2_operator.aws_conn_id, "aws_conn_test")
-        self.assertEqual(ec2_operator.region_name, "region-test")
-        self.assertEqual(ec2_operator.check_interval, 3)
+        assert ec2_operator.task_id == "task_test"
+        assert ec2_operator.instance_id == "i-123abc"
+        assert ec2_operator.aws_conn_id == "aws_conn_test"
+        assert ec2_operator.region_name == "region-test"
+        assert ec2_operator.check_interval == 3
 
     @mock_ec2
     def test_start_instance(self):
@@ -58,7 +57,4 @@ class TestEC2Operator(unittest.TestCase):
         )
         start_test.execute(None)
         # assert instance state is running
-        self.assertEqual(
-            ec2_hook.get_instance_state(instance_id=instance_id),
-            "running"
-        )
+        assert ec2_hook.get_instance_state(instance_id=instance_id) == "running"

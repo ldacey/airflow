@@ -15,7 +15,10 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""This module is deprecated. Please use `airflow.providers.amazon.aws.operators.emr_terminate_job_flow`."""
+"""
+This module is deprecated.
+Please use :mod:`airflow.providers.amazon.aws.operators.emr_terminate_job_flow`.
+"""
 
 import warnings
 
@@ -24,5 +27,6 @@ from airflow.providers.amazon.aws.operators.emr_terminate_job_flow import EmrTer
 
 warnings.warn(
     "This module is deprecated. Please use `airflow.providers.amazon.aws.operators.emr_terminate_job_flow`.",
-    DeprecationWarning, stacklevel=2
+    DeprecationWarning,
+    stacklevel=2,
 )

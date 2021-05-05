@@ -15,20 +15,34 @@
 # specific language governing permissions and limitations
 # under the License.
 import enum
+from typing import Optional
+
+from airflow.typing_compat import TypedDict
 
 
-class DagRunType(enum.Enum):
+class DagRunType(str, enum.Enum):
     """Class with DagRun types"""
+
     BACKFILL_JOB = "backfill"
     SCHEDULED = "scheduled"
     MANUAL = "manual"
 
+    def __str__(self) -> str:  # pylint: disable=invalid-str-returned
+        return self.value
+
     @staticmethod
     def from_run_id(run_id: str) -> "DagRunType":
-        """
-        Resolved DagRun type from run_id.
-        """
+        """Resolved DagRun type from run_id."""
         for run_type in DagRunType:
             if run_id and run_id.startswith(f"{run_type.value}__"):
                 return run_type
         return DagRunType.MANUAL
+
+
+class EdgeInfoType(TypedDict):
+    """
+    Represents extra metadata that the DAG can store about an edge,
+    usually generated from an EdgeModifier.
+    """
+
+    label: Optional[str]

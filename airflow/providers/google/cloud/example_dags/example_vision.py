@@ -18,7 +18,7 @@
 
 """
 Example Airflow DAG that creates, gets, updates and deletes Products and Product Sets in the Google Cloud
-Vision service in the Google Cloud Platform.
+Vision service.
 
 This DAG relies on the following OS environment variables
 
@@ -36,31 +36,45 @@ import os
 from airflow import models
 from airflow.operators.bash import BashOperator
 from airflow.providers.google.cloud.operators.vision import (
-    CloudVisionAddProductToProductSetOperator, CloudVisionCreateProductOperator,
-    CloudVisionCreateProductSetOperator, CloudVisionCreateReferenceImageOperator,
-    CloudVisionDeleteProductOperator, CloudVisionDeleteProductSetOperator,
-    CloudVisionDeleteReferenceImageOperator, CloudVisionDetectImageLabelsOperator,
-    CloudVisionDetectImageSafeSearchOperator, CloudVisionDetectTextOperator, CloudVisionGetProductOperator,
-    CloudVisionGetProductSetOperator, CloudVisionImageAnnotateOperator,
-    CloudVisionRemoveProductFromProductSetOperator, CloudVisionTextDetectOperator,
-    CloudVisionUpdateProductOperator, CloudVisionUpdateProductSetOperator,
+    CloudVisionAddProductToProductSetOperator,
+    CloudVisionCreateProductOperator,
+    CloudVisionCreateProductSetOperator,
+    CloudVisionCreateReferenceImageOperator,
+    CloudVisionDeleteProductOperator,
+    CloudVisionDeleteProductSetOperator,
+    CloudVisionDeleteReferenceImageOperator,
+    CloudVisionDetectImageLabelsOperator,
+    CloudVisionDetectImageSafeSearchOperator,
+    CloudVisionDetectTextOperator,
+    CloudVisionGetProductOperator,
+    CloudVisionGetProductSetOperator,
+    CloudVisionImageAnnotateOperator,
+    CloudVisionRemoveProductFromProductSetOperator,
+    CloudVisionTextDetectOperator,
+    CloudVisionUpdateProductOperator,
+    CloudVisionUpdateProductSetOperator,
 )
 from airflow.utils.dates import days_ago
 
 # [START howto_operator_vision_retry_import]
 from google.api_core.retry import Retry  # isort:skip pylint: disable=wrong-import-order
+
 # [END howto_operator_vision_retry_import]
 # [START howto_operator_vision_product_set_import]
 from google.cloud.vision_v1.types import ProductSet  # isort:skip pylint: disable=wrong-import-order
+
 # [END howto_operator_vision_product_set_import]
 # [START howto_operator_vision_product_import]
 from google.cloud.vision_v1.types import Product  # isort:skip pylint: disable=wrong-import-order
+
 # [END howto_operator_vision_product_import]
 # [START howto_operator_vision_reference_image_import]
 from google.cloud.vision_v1.types import ReferenceImage  # isort:skip pylint: disable=wrong-import-order
+
 # [END howto_operator_vision_reference_image_import]
 # [START howto_operator_vision_enums_import]
 from google.cloud.vision import enums  # isort:skip pylint: disable=wrong-import-order
+
 # [END howto_operator_vision_enums_import]
 
 
@@ -69,8 +83,12 @@ GCP_VISION_LOCATION = os.environ.get('GCP_VISION_LOCATION', 'europe-west1')
 GCP_VISION_PRODUCT_SET_ID = os.environ.get('GCP_VISION_PRODUCT_SET_ID', 'product_set_explicit_id')
 GCP_VISION_PRODUCT_ID = os.environ.get('GCP_VISION_PRODUCT_ID', 'product_explicit_id')
 GCP_VISION_REFERENCE_IMAGE_ID = os.environ.get('GCP_VISION_REFERENCE_IMAGE_ID', 'reference_image_explicit_id')
-GCP_VISION_REFERENCE_IMAGE_URL = os.environ.get('GCP_VISION_REFERENCE_IMAGE_URL', 'gs://bucket/image1.jpg')
-GCP_VISION_ANNOTATE_IMAGE_URL = os.environ.get('GCP_VISION_ANNOTATE_IMAGE_URL', 'gs://bucket/image2.jpg')
+GCP_VISION_REFERENCE_IMAGE_URL = os.environ.get(
+    'GCP_VISION_REFERENCE_IMAGE_URL', 'gs://INVALID BUCKET NAME/image1.jpg'
+)
+GCP_VISION_ANNOTATE_IMAGE_URL = os.environ.get(
+    'GCP_VISION_ANNOTATE_IMAGE_URL', 'gs://INVALID BUCKET NAME/image2.jpg'
+)
 
 # [START howto_operator_vision_product_set]
 product_set = ProductSet(display_name='My Product Set')

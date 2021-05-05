@@ -27,6 +27,7 @@ from tempfile import mkdtemp
 from unittest import mock
 
 import boto3
+import pytest
 from moto import mock_s3
 
 from airflow.exceptions import AirflowException
@@ -34,7 +35,6 @@ from airflow.providers.amazon.aws.operators.s3_file_transform import S3FileTrans
 
 
 class TestS3FileTransformOperator(unittest.TestCase):
-
     def setUp(self):
         self.content = b"input"
         self.bucket = "bucket"
@@ -66,12 +66,13 @@ class TestS3FileTransformOperator(unittest.TestCase):
             dest_s3_key=output_path,
             transform_script=self.transform_script,
             replace=True,
-            task_id="task_id")
+            task_id="task_id",
+        )
         op.execute(None)
 
-        mock_log.info.assert_has_calls([
-            mock.call(line.decode(sys.getdefaultencoding())) for line in process_output
-        ])
+        mock_log.info.assert_has_calls(
+            [mock.call(line.decode(sys.getdefaultencoding())) for line in process_output]
+        )
 
     @mock.patch('subprocess.Popen')
     @mock_s3
@@ -84,12 +85,13 @@ class TestS3FileTransformOperator(unittest.TestCase):
             dest_s3_key=output_path,
             transform_script=self.transform_script,
             replace=True,
-            task_id="task_id")
+            task_id="task_id",
+        )
 
-        with self.assertRaises(AirflowException) as e:
+        with pytest.raises(AirflowException) as ctx:
             op.execute(None)
 
-        self.assertEqual('Transform script failed: 42', str(e.exception))
+        assert 'Transform script failed: 42' == str(ctx.value)
 
     @mock.patch('subprocess.Popen')
     @mock_s3
@@ -104,10 +106,11 @@ class TestS3FileTransformOperator(unittest.TestCase):
             transform_script=self.transform_script,
             script_args=script_args,
             replace=True,
-            task_id="task_id")
+            task_id="task_id",
+        )
         op.execute(None)
 
-        self.assertEqual(script_args, mock_popen.call_args[0][0][3:])
+        assert script_args == mock_popen.call_args[0][0][3:]
 
     @mock.patch('airflow.providers.amazon.aws.hooks.s3.S3Hook.select_key', return_value="input")
     @mock_s3
@@ -120,24 +123,23 @@ class TestS3FileTransformOperator(unittest.TestCase):
             dest_s3_key=output_path,
             select_expression=select_expression,
             replace=True,
-            task_id="task_id")
+            task_id="task_id",
+        )
         op.execute(None)
 
-        mock_select_key.assert_called_once_with(
-            key=input_path,
-            expression=select_expression
-        )
+        mock_select_key.assert_called_once_with(key=input_path, expression=select_expression)
 
         conn = boto3.client('s3')
         result = conn.get_object(Bucket=self.bucket, Key=self.output_key)
-        self.assertEqual(self.content, result['Body'].read())
+        assert self.content == result['Body'].read()
 
     @staticmethod
     def mock_process(mock_popen, return_code=0, process_output=None):
-        process = mock_popen.return_value
-        process.stdout.readline.side_effect = process_output or []
-        process.wait.return_value = None
-        process.returncode = return_code
+        mock_proc = mock.MagicMock()
+        mock_proc.returncode = return_code
+        mock_proc.stdout.readline.side_effect = process_output or []
+        mock_proc.wait.return_value = None
+        mock_popen.return_value.__enter__.return_value = mock_proc
 
     def s3_paths(self):
         conn = boto3.client('s3')

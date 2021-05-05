@@ -24,24 +24,15 @@ from airflow.utils import db
 
 
 class TestAzureContainerVolumeHook(unittest.TestCase):
-
     def test_get_file_volume(self):
-        db.merge_conn(
-            Connection(
-                conn_id='wasb_test_key',
-                conn_type='wasb',
-                login='login',
-                password='key'
-            )
-        )
+        db.merge_conn(Connection(conn_id='wasb_test_key', conn_type='wasb', login='login', password='key'))
         hook = AzureContainerVolumeHook(wasb_conn_id='wasb_test_key')
-        volume = hook.get_file_volume(mount_name='mount',
-                                      share_name='share',
-                                      storage_account_name='storage',
-                                      read_only=True)
-        self.assertIsNotNone(volume)
-        self.assertEqual(volume.name, 'mount')
-        self.assertEqual(volume.azure_file.share_name, 'share')
-        self.assertEqual(volume.azure_file.storage_account_key, 'key')
-        self.assertEqual(volume.azure_file.storage_account_name, 'storage')
-        self.assertEqual(volume.azure_file.read_only, True)
+        volume = hook.get_file_volume(
+            mount_name='mount', share_name='share', storage_account_name='storage', read_only=True
+        )
+        assert volume is not None
+        assert volume.name == 'mount'
+        assert volume.azure_file.share_name == 'share'
+        assert volume.azure_file.storage_account_key == 'key'
+        assert volume.azure_file.storage_account_name == 'storage'
+        assert volume.azure_file.read_only is True

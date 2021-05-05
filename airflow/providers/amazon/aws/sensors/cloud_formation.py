@@ -15,11 +15,16 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""
-This module contains sensors for AWS CloudFormation.
-"""
+"""This module contains sensors for AWS CloudFormation."""
+from typing import Optional
+
+try:
+    from functools import cached_property
+except ImportError:
+    from cached_property import cached_property
+
 from airflow.providers.amazon.aws.hooks.cloud_formation import AWSCloudFormationHook
-from airflow.sensors.base_sensor_operator import BaseSensorOperator
+from airflow.sensors.base import BaseSensorOperator
 from airflow.utils.decorators import apply_defaults
 
 
@@ -40,14 +45,11 @@ class CloudFormationCreateStackSensor(BaseSensorOperator):
     ui_color = '#C5CAE9'
 
     @apply_defaults
-    def __init__(self, *,
-                 stack_name,
-                 aws_conn_id='aws_default',
-                 region_name=None,
-                 **kwargs):
+    def __init__(self, *, stack_name, aws_conn_id='aws_default', region_name=None, **kwargs):
         super().__init__(**kwargs)
         self.stack_name = stack_name
-        self.hook = AWSCloudFormationHook(aws_conn_id=aws_conn_id, region_name=region_name)
+        self.aws_conn_id = aws_conn_id
+        self.region_name = region_name
 
     def poke(self, context):
         stack_status = self.hook.get_stack_status(self.stack_name)
@@ -56,6 +58,11 @@ class CloudFormationCreateStackSensor(BaseSensorOperator):
         if stack_status in ('CREATE_IN_PROGRESS', None):
             return False
         raise ValueError(f'Stack {self.stack_name} in bad state: {stack_status}')
+
+    @cached_property
+    def hook(self) -> AWSCloudFormationHook:
+        """Create and return an AWSCloudFormationHook"""
+        return AWSCloudFormationHook(aws_conn_id=self.aws_conn_id, region_name=self.region_name)
 
 
 class CloudFormationDeleteStackSensor(BaseSensorOperator):
@@ -75,29 +82,28 @@ class CloudFormationDeleteStackSensor(BaseSensorOperator):
     ui_color = '#C5CAE9'
 
     @apply_defaults
-    def __init__(self, *,
-                 stack_name,
-                 aws_conn_id='aws_default',
-                 region_name=None,
-                 **kwargs):
+    def __init__(
+        self,
+        *,
+        stack_name: str,
+        aws_conn_id: str = 'aws_default',
+        region_name: Optional[str] = None,
+        **kwargs,
+    ):
         super().__init__(**kwargs)
         self.aws_conn_id = aws_conn_id
         self.region_name = region_name
         self.stack_name = stack_name
-        self.hook = None
 
     def poke(self, context):
-        stack_status = self.get_hook().get_stack_status(self.stack_name)
+        stack_status = self.hook.get_stack_status(self.stack_name)
         if stack_status in ('DELETE_COMPLETE', None):
             return True
         if stack_status == 'DELETE_IN_PROGRESS':
             return False
         raise ValueError(f'Stack {self.stack_name} in bad state: {stack_status}')
 
-    def get_hook(self):
+    @cached_property
+    def hook(self) -> AWSCloudFormationHook:
         """Create and return an AWSCloudFormationHook"""
-        if not self.hook:
-            self.hook = AWSCloudFormationHook(
-                aws_conn_id=self.aws_conn_id,
-                region_name=self.region_name)
-        return self.hook
+        return AWSCloudFormationHook(aws_conn_id=self.aws_conn_id, region_name=self.region_name)

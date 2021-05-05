@@ -27,7 +27,7 @@ from unittest import mock
 from airflow import DAG, settings
 from airflow.config_templates.airflow_local_settings import DEFAULT_LOGGING_CONFIG
 from airflow.models import TaskInstance
-from airflow.operators.dummy_operator import DummyOperator
+from airflow.operators.dummy import DummyOperator
 from airflow.utils import timezone
 from airflow.utils.log.log_reader import TaskLogReader
 from airflow.utils.session import create_session
@@ -79,7 +79,7 @@ class TestLogView(unittest.TestCase):
         ] = "{{ ti.dag_id }}/{{ ti.task_id }}/{{ ts | replace(':', '.') }}/{{ try_number }}.log"
         settings_file = os.path.join(self.settings_folder, "airflow_local_settings.py")
         with open(settings_file, "w") as handle:
-            new_logging_file = "LOGGING_CONFIG = {}".format(logging_config)
+            new_logging_file = f"LOGGING_CONFIG = {logging_config}"
             handle.writelines(new_logging_file)
         sys.path.append(self.settings_folder)
         with conf_vars({("logging", "logging_config_class"): "airflow_local_settings.LOGGING_CONFIG"}):
@@ -103,82 +103,88 @@ class TestLogView(unittest.TestCase):
         task_log_reader = TaskLogReader()
         logs, metadatas = task_log_reader.read_log_chunks(ti=self.ti, try_number=1, metadata={})
 
-        self.assertEqual(
-            [
+        assert [
+            (
+                '',
                 f"*** Reading local file: "
                 f"{self.log_dir}/dag_log_reader/task_log_reader/2017-09-01T00.00.00+00.00/1.log\n"
-                f"try_number=1.\n"
-            ],
-            logs,
-        )
-        self.assertEqual({"end_of_log": True}, metadatas)
+                f"try_number=1.\n",
+            )
+        ] == logs[0]
+        assert {"end_of_log": True} == metadatas
 
     def test_test_read_log_chunks_should_read_all_files(self):
         task_log_reader = TaskLogReader()
         logs, metadatas = task_log_reader.read_log_chunks(ti=self.ti, try_number=None, metadata={})
 
-        self.assertEqual(
+        assert [
             [
-                "*** Reading local file: "
-                f"{self.log_dir}/dag_log_reader/task_log_reader/2017-09-01T00.00.00+00.00/1.log\n"
-                "try_number=1.\n",
-                f"*** Reading local file: "
-                f"{self.log_dir}/dag_log_reader/task_log_reader/2017-09-01T00.00.00+00.00/2.log\n"
-                f"try_number=2.\n",
-                f"*** Reading local file: "
-                f"{self.log_dir}/dag_log_reader/task_log_reader/2017-09-01T00.00.00+00.00/3.log\n"
-                f"try_number=3.\n",
+                (
+                    '',
+                    "*** Reading local file: "
+                    f"{self.log_dir}/dag_log_reader/task_log_reader/2017-09-01T00.00.00+00.00/1.log\n"
+                    "try_number=1.\n",
+                )
             ],
-            logs,
-        )
-        self.assertEqual({"end_of_log": True}, metadatas)
+            [
+                (
+                    '',
+                    f"*** Reading local file: "
+                    f"{self.log_dir}/dag_log_reader/task_log_reader/2017-09-01T00.00.00+00.00/2.log\n"
+                    f"try_number=2.\n",
+                )
+            ],
+            [
+                (
+                    '',
+                    f"*** Reading local file: "
+                    f"{self.log_dir}/dag_log_reader/task_log_reader/2017-09-01T00.00.00+00.00/3.log\n"
+                    f"try_number=3.\n",
+                )
+            ],
+        ] == logs
+        assert {"end_of_log": True} == metadatas
 
     def test_test_test_read_log_stream_should_read_one_try(self):
         task_log_reader = TaskLogReader()
         stream = task_log_reader.read_log_stream(ti=self.ti, try_number=1, metadata={})
 
-        self.assertEqual(
-            [
-                "*** Reading local file: "
-                f"{self.log_dir}/dag_log_reader/task_log_reader/2017-09-01T00.00.00+00.00/1.log\n"
-                "try_number=1.\n"
-                "\n"
-            ],
-            list(stream),
-        )
+        assert [
+            "\n*** Reading local file: "
+            f"{self.log_dir}/dag_log_reader/task_log_reader/2017-09-01T00.00.00+00.00/1.log\n"
+            "try_number=1.\n"
+            "\n"
+        ] == list(stream)
 
     def test_test_test_read_log_stream_should_read_all_logs(self):
         task_log_reader = TaskLogReader()
         stream = task_log_reader.read_log_stream(ti=self.ti, try_number=None, metadata={})
-        self.assertEqual(
-            [
-                "*** Reading local file: "
-                f"{self.log_dir}/dag_log_reader/task_log_reader/2017-09-01T00.00.00+00.00/1.log\n"
-                "try_number=1.\n"
-                "\n",
-                "*** Reading local file: "
-                f"{self.log_dir}/dag_log_reader/task_log_reader/2017-09-01T00.00.00+00.00/2.log\n"
-                "try_number=2.\n"
-                "\n",
-                "*** Reading local file: "
-                f"{self.log_dir}/dag_log_reader/task_log_reader/2017-09-01T00.00.00+00.00/3.log\n"
-                "try_number=3.\n"
-                "\n",
-            ],
-            list(stream),
-        )
+        assert [
+            "\n*** Reading local file: "
+            f"{self.log_dir}/dag_log_reader/task_log_reader/2017-09-01T00.00.00+00.00/1.log\n"
+            "try_number=1.\n"
+            "\n",
+            "\n*** Reading local file: "
+            f"{self.log_dir}/dag_log_reader/task_log_reader/2017-09-01T00.00.00+00.00/2.log\n"
+            "try_number=2.\n"
+            "\n",
+            "\n*** Reading local file: "
+            f"{self.log_dir}/dag_log_reader/task_log_reader/2017-09-01T00.00.00+00.00/3.log\n"
+            "try_number=3.\n"
+            "\n",
+        ] == list(stream)
 
     @mock.patch("airflow.utils.log.file_task_handler.FileTaskHandler.read")
     def test_read_log_stream_should_support_multiple_chunks(self, mock_read):
-        first_return = (["1st line"], [{}])
-        second_return = (["2nd line"], [{"end_of_log": False}])
-        third_return = (["3rd line"], [{"end_of_log": True}])
-        fourth_return = (["should never be read"], [{"end_of_log": True}])
+        first_return = ([[('', "1st line")]], [{}])
+        second_return = ([[('', "2nd line")]], [{"end_of_log": False}])
+        third_return = ([[('', "3rd line")]], [{"end_of_log": True}])
+        fourth_return = ([[('', "should never be read")]], [{"end_of_log": True}])
         mock_read.side_effect = [first_return, second_return, third_return, fourth_return]
 
         task_log_reader = TaskLogReader()
         log_stream = task_log_reader.read_log_stream(ti=self.ti, try_number=1, metadata={})
-        self.assertEqual(["1st line\n", "2nd line\n", "3rd line\n"], list(log_stream))
+        assert ["\n1st line\n", "\n2nd line\n", "\n3rd line\n"] == list(log_stream)
 
         mock_read.assert_has_calls(
             [
@@ -191,15 +197,15 @@ class TestLogView(unittest.TestCase):
 
     @mock.patch("airflow.utils.log.file_task_handler.FileTaskHandler.read")
     def test_read_log_stream_should_read_each_try_in_turn(self, mock_read):
-        first_return = (["try_number=1."], [{"end_of_log": True}])
-        second_return = (["try_number=2."], [{"end_of_log": True}])
-        third_return = (["try_number=3."], [{"end_of_log": True}])
-        fourth_return = (["should never be read"], [{"end_of_log": True}])
+        first_return = ([[('', "try_number=1.")]], [{"end_of_log": True}])
+        second_return = ([[('', "try_number=2.")]], [{"end_of_log": True}])
+        third_return = ([[('', "try_number=3.")]], [{"end_of_log": True}])
+        fourth_return = ([[('', "should never be read")]], [{"end_of_log": True}])
         mock_read.side_effect = [first_return, second_return, third_return, fourth_return]
 
         task_log_reader = TaskLogReader()
         log_stream = task_log_reader.read_log_stream(ti=self.ti, try_number=None, metadata={})
-        self.assertEqual(['try_number=1.\n', 'try_number=2.\n', 'try_number=3.\n'], list(log_stream))
+        assert ['\ntry_number=1.\n', '\ntry_number=2.\n', '\ntry_number=3.\n'] == list(log_stream)
 
         mock_read.assert_has_calls(
             [

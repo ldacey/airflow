@@ -21,6 +21,8 @@ import unittest
 from base64 import b64encode
 from unittest import mock
 
+import pytest
+
 from airflow.exceptions import AirflowException
 from airflow.models import DAG, TaskInstance
 from airflow.providers.sftp.operators.sftp import SFTPOperation, SFTPOperator
@@ -53,22 +55,19 @@ class TestSFTPOperator(unittest.TestCase):
         self.test_remote_dir = "/tmp/tmp1"
         self.test_local_filename = 'test_local_file'
         self.test_remote_filename = 'test_remote_file'
-        self.test_local_filepath = '{0}/{1}'.format(self.test_dir,
-                                                    self.test_local_filename)
+        self.test_local_filepath = f'{self.test_dir}/{self.test_local_filename}'
         # Local Filepath with Intermediate Directory
-        self.test_local_filepath_int_dir = '{0}/{1}'.format(self.test_local_dir,
-                                                            self.test_local_filename)
-        self.test_remote_filepath = '{0}/{1}'.format(self.test_dir,
-                                                     self.test_remote_filename)
+        self.test_local_filepath_int_dir = f'{self.test_local_dir}/{self.test_local_filename}'
+        self.test_remote_filepath = f'{self.test_dir}/{self.test_remote_filename}'
         # Remote Filepath with Intermediate Directory
-        self.test_remote_filepath_int_dir = '{0}/{1}'.format(self.test_remote_dir,
-                                                             self.test_remote_filename)
+        self.test_remote_filepath_int_dir = f'{self.test_remote_dir}/{self.test_remote_filename}'
 
     @conf_vars({('core', 'enable_xcom_pickling'): 'True'})
     def test_pickle_file_transfer_put(self):
-        test_local_file_content = \
-            b"This is local file content \n which is multiline " \
+        test_local_file_content = (
+            b"This is local file content \n which is multiline "
             b"continuing....with other character\nanother line here \n this is last line"
+        )
         # create a test file locally
         with open(self.test_local_filepath, 'wb') as file:
             file.write(test_local_file_content)
@@ -81,9 +80,9 @@ class TestSFTPOperator(unittest.TestCase):
             remote_filepath=self.test_remote_filepath,
             operation=SFTPOperation.PUT,
             create_intermediate_dirs=True,
-            dag=self.dag
+            dag=self.dag,
         )
-        self.assertIsNotNone(put_test_task)
+        assert put_test_task is not None
         ti2 = TaskInstance(task=put_test_task, execution_date=timezone.utcnow())
         ti2.run()
 
@@ -91,22 +90,24 @@ class TestSFTPOperator(unittest.TestCase):
         check_file_task = SSHOperator(
             task_id="check_file_task",
             ssh_hook=self.hook,
-            command="cat {0}".format(self.test_remote_filepath),
+            command=f"cat {self.test_remote_filepath}",
             do_xcom_push=True,
-            dag=self.dag
+            dag=self.dag,
         )
-        self.assertIsNotNone(check_file_task)
+        assert check_file_task is not None
         ti3 = TaskInstance(task=check_file_task, execution_date=timezone.utcnow())
         ti3.run()
-        self.assertEqual(
-            ti3.xcom_pull(task_ids=check_file_task.task_id, key='return_value').strip(),
-            test_local_file_content)
+        assert (
+            ti3.xcom_pull(task_ids=check_file_task.task_id, key='return_value').strip()
+            == test_local_file_content
+        )
 
     @conf_vars({('core', 'enable_xcom_pickling'): 'True'})
     def test_file_transfer_no_intermediate_dir_error_put(self):
-        test_local_file_content = \
-            b"This is local file content \n which is multiline " \
+        test_local_file_content = (
+            b"This is local file content \n which is multiline "
             b"continuing....with other character\nanother line here \n this is last line"
+        )
         # create a test file locally
         with open(self.test_local_filepath, 'wb') as file:
             file.write(test_local_file_content)
@@ -114,7 +115,7 @@ class TestSFTPOperator(unittest.TestCase):
         # Try to put test file to remote
         # This should raise an error with "No such file" as the directory
         # does not exist
-        with self.assertRaises(Exception) as error:
+        with pytest.raises(Exception) as ctx:
             put_test_task = SFTPOperator(
                 task_id="test_sftp",
                 ssh_hook=self.hook,
@@ -122,18 +123,19 @@ class TestSFTPOperator(unittest.TestCase):
                 remote_filepath=self.test_remote_filepath_int_dir,
                 operation=SFTPOperation.PUT,
                 create_intermediate_dirs=False,
-                dag=self.dag
+                dag=self.dag,
             )
-            self.assertIsNotNone(put_test_task)
+            assert put_test_task is not None
             ti2 = TaskInstance(task=put_test_task, execution_date=timezone.utcnow())
             ti2.run()
-        self.assertIn('No such file', str(error.exception))
+        assert 'No such file' in str(ctx.value)
 
     @conf_vars({('core', 'enable_xcom_pickling'): 'True'})
     def test_file_transfer_with_intermediate_dir_put(self):
-        test_local_file_content = \
-            b"This is local file content \n which is multiline " \
+        test_local_file_content = (
+            b"This is local file content \n which is multiline "
             b"continuing....with other character\nanother line here \n this is last line"
+        )
         # create a test file locally
         with open(self.test_local_filepath, 'wb') as file:
             file.write(test_local_file_content)
@@ -146,9 +148,9 @@ class TestSFTPOperator(unittest.TestCase):
             remote_filepath=self.test_remote_filepath_int_dir,
             operation=SFTPOperation.PUT,
             create_intermediate_dirs=True,
-            dag=self.dag
+            dag=self.dag,
         )
-        self.assertIsNotNone(put_test_task)
+        assert put_test_task is not None
         ti2 = TaskInstance(task=put_test_task, execution_date=timezone.utcnow())
         ti2.run()
 
@@ -156,22 +158,23 @@ class TestSFTPOperator(unittest.TestCase):
         check_file_task = SSHOperator(
             task_id="test_check_file",
             ssh_hook=self.hook,
-            command="cat {0}".format(self.test_remote_filepath_int_dir),
+            command=f"cat {self.test_remote_filepath_int_dir}",
             do_xcom_push=True,
-            dag=self.dag
+            dag=self.dag,
         )
-        self.assertIsNotNone(check_file_task)
+        assert check_file_task is not None
         ti3 = TaskInstance(task=check_file_task, execution_date=timezone.utcnow())
         ti3.run()
-        self.assertEqual(
-            ti3.xcom_pull(task_ids='test_check_file', key='return_value').strip(),
-            test_local_file_content)
+        assert (
+            ti3.xcom_pull(task_ids='test_check_file', key='return_value').strip() == test_local_file_content
+        )
 
     @conf_vars({('core', 'enable_xcom_pickling'): 'False'})
     def test_json_file_transfer_put(self):
-        test_local_file_content = \
-            b"This is local file content \n which is multiline " \
+        test_local_file_content = (
+            b"This is local file content \n which is multiline "
             b"continuing....with other character\nanother line here \n this is last line"
+        )
         # create a test file locally
         with open(self.test_local_filepath, 'wb') as file:
             file.write(test_local_file_content)
@@ -183,9 +186,9 @@ class TestSFTPOperator(unittest.TestCase):
             local_filepath=self.test_local_filepath,
             remote_filepath=self.test_remote_filepath,
             operation=SFTPOperation.PUT,
-            dag=self.dag
+            dag=self.dag,
         )
-        self.assertIsNotNone(put_test_task)
+        assert put_test_task is not None
         ti2 = TaskInstance(task=put_test_task, execution_date=timezone.utcnow())
         ti2.run()
 
@@ -193,33 +196,33 @@ class TestSFTPOperator(unittest.TestCase):
         check_file_task = SSHOperator(
             task_id="check_file_task",
             ssh_hook=self.hook,
-            command="cat {0}".format(self.test_remote_filepath),
+            command=f"cat {self.test_remote_filepath}",
             do_xcom_push=True,
-            dag=self.dag
+            dag=self.dag,
         )
-        self.assertIsNotNone(check_file_task)
+        assert check_file_task is not None
         ti3 = TaskInstance(task=check_file_task, execution_date=timezone.utcnow())
         ti3.run()
-        self.assertEqual(
-            ti3.xcom_pull(task_ids=check_file_task.task_id, key='return_value').strip(),
-            b64encode(test_local_file_content).decode('utf-8'))
+        assert ti3.xcom_pull(task_ids=check_file_task.task_id, key='return_value').strip() == b64encode(
+            test_local_file_content
+        ).decode('utf-8')
 
     @conf_vars({('core', 'enable_xcom_pickling'): 'True'})
     def test_pickle_file_transfer_get(self):
-        test_remote_file_content = \
-            "This is remote file content \n which is also multiline " \
+        test_remote_file_content = (
+            "This is remote file content \n which is also multiline "
             "another line here \n this is last line. EOF"
+        )
 
         # create a test file remotely
         create_file_task = SSHOperator(
             task_id="test_create_file",
             ssh_hook=self.hook,
-            command="echo '{0}' > {1}".format(test_remote_file_content,
-                                              self.test_remote_filepath),
+            command=f"echo '{test_remote_file_content}' > {self.test_remote_filepath}",
             do_xcom_push=True,
-            dag=self.dag
+            dag=self.dag,
         )
-        self.assertIsNotNone(create_file_task)
+        assert create_file_task is not None
         ti1 = TaskInstance(task=create_file_task, execution_date=timezone.utcnow())
         ti1.run()
 
@@ -230,34 +233,34 @@ class TestSFTPOperator(unittest.TestCase):
             local_filepath=self.test_local_filepath,
             remote_filepath=self.test_remote_filepath,
             operation=SFTPOperation.GET,
-            dag=self.dag
+            dag=self.dag,
         )
-        self.assertIsNotNone(get_test_task)
+        assert get_test_task is not None
         ti2 = TaskInstance(task=get_test_task, execution_date=timezone.utcnow())
         ti2.run()
 
         # test the received content
         content_received = None
-        with open(self.test_local_filepath, 'r') as file:
+        with open(self.test_local_filepath) as file:
             content_received = file.read()
-        self.assertEqual(content_received.strip(), test_remote_file_content)
+        assert content_received.strip() == test_remote_file_content
 
     @conf_vars({('core', 'enable_xcom_pickling'): 'False'})
     def test_json_file_transfer_get(self):
-        test_remote_file_content = \
-            "This is remote file content \n which is also multiline " \
+        test_remote_file_content = (
+            "This is remote file content \n which is also multiline "
             "another line here \n this is last line. EOF"
+        )
 
         # create a test file remotely
         create_file_task = SSHOperator(
             task_id="test_create_file",
             ssh_hook=self.hook,
-            command="echo '{0}' > {1}".format(test_remote_file_content,
-                                              self.test_remote_filepath),
+            command=f"echo '{test_remote_file_content}' > {self.test_remote_filepath}",
             do_xcom_push=True,
-            dag=self.dag
+            dag=self.dag,
         )
-        self.assertIsNotNone(create_file_task)
+        assert create_file_task is not None
         ti1 = TaskInstance(task=create_file_task, execution_date=timezone.utcnow())
         ti1.run()
 
@@ -268,71 +271,70 @@ class TestSFTPOperator(unittest.TestCase):
             local_filepath=self.test_local_filepath,
             remote_filepath=self.test_remote_filepath,
             operation=SFTPOperation.GET,
-            dag=self.dag
+            dag=self.dag,
         )
-        self.assertIsNotNone(get_test_task)
+        assert get_test_task is not None
         ti2 = TaskInstance(task=get_test_task, execution_date=timezone.utcnow())
         ti2.run()
 
         # test the received content
         content_received = None
-        with open(self.test_local_filepath, 'r') as file:
+        with open(self.test_local_filepath) as file:
             content_received = file.read()
-        self.assertEqual(content_received.strip(),
-                         test_remote_file_content.encode('utf-8').decode('utf-8'))
+        assert content_received.strip() == test_remote_file_content.encode('utf-8').decode('utf-8')
 
     @conf_vars({('core', 'enable_xcom_pickling'): 'True'})
     def test_file_transfer_no_intermediate_dir_error_get(self):
-        test_remote_file_content = \
-            "This is remote file content \n which is also multiline " \
+        test_remote_file_content = (
+            "This is remote file content \n which is also multiline "
             "another line here \n this is last line. EOF"
+        )
 
         # create a test file remotely
         create_file_task = SSHOperator(
             task_id="test_create_file",
             ssh_hook=self.hook,
-            command="echo '{0}' > {1}".format(test_remote_file_content,
-                                              self.test_remote_filepath),
+            command=f"echo '{test_remote_file_content}' > {self.test_remote_filepath}",
             do_xcom_push=True,
-            dag=self.dag
+            dag=self.dag,
         )
-        self.assertIsNotNone(create_file_task)
+        assert create_file_task is not None
         ti1 = TaskInstance(task=create_file_task, execution_date=timezone.utcnow())
         ti1.run()
 
         # Try to GET test file from remote
         # This should raise an error with "No such file" as the directory
         # does not exist
-        with self.assertRaises(Exception) as error:
+        with pytest.raises(Exception) as ctx:
             get_test_task = SFTPOperator(
                 task_id="test_sftp",
                 ssh_hook=self.hook,
                 local_filepath=self.test_local_filepath_int_dir,
                 remote_filepath=self.test_remote_filepath,
                 operation=SFTPOperation.GET,
-                dag=self.dag
+                dag=self.dag,
             )
-            self.assertIsNotNone(get_test_task)
+            assert get_test_task is not None
             ti2 = TaskInstance(task=get_test_task, execution_date=timezone.utcnow())
             ti2.run()
-        self.assertIn('No such file', str(error.exception))
+        assert 'No such file' in str(ctx.value)
 
     @conf_vars({('core', 'enable_xcom_pickling'): 'True'})
     def test_file_transfer_with_intermediate_dir_error_get(self):
-        test_remote_file_content = \
-            "This is remote file content \n which is also multiline " \
+        test_remote_file_content = (
+            "This is remote file content \n which is also multiline "
             "another line here \n this is last line. EOF"
+        )
 
         # create a test file remotely
         create_file_task = SSHOperator(
             task_id="test_create_file",
             ssh_hook=self.hook,
-            command="echo '{0}' > {1}".format(test_remote_file_content,
-                                              self.test_remote_filepath),
+            command=f"echo '{test_remote_file_content}' > {self.test_remote_filepath}",
             do_xcom_push=True,
-            dag=self.dag
+            dag=self.dag,
         )
-        self.assertIsNotNone(create_file_task)
+        assert create_file_task is not None
         ti1 = TaskInstance(task=create_file_task, execution_date=timezone.utcnow())
         ti1.run()
 
@@ -344,29 +346,28 @@ class TestSFTPOperator(unittest.TestCase):
             remote_filepath=self.test_remote_filepath,
             operation=SFTPOperation.GET,
             create_intermediate_dirs=True,
-            dag=self.dag
+            dag=self.dag,
         )
-        self.assertIsNotNone(get_test_task)
+        assert get_test_task is not None
         ti2 = TaskInstance(task=get_test_task, execution_date=timezone.utcnow())
         ti2.run()
 
         # test the received content
         content_received = None
-        with open(self.test_local_filepath_int_dir, 'r') as file:
+        with open(self.test_local_filepath_int_dir) as file:
             content_received = file.read()
-        self.assertEqual(content_received.strip(), test_remote_file_content)
+        assert content_received.strip() == test_remote_file_content
 
     @mock.patch.dict('os.environ', {'AIRFLOW_CONN_' + TEST_CONN_ID.upper(): "ssh://test_id@localhost"})
     def test_arg_checking(self):
         # Exception should be raised if neither ssh_hook nor ssh_conn_id is provided
-        with self.assertRaisesRegex(AirflowException,
-                                    "Cannot operate without ssh_hook or ssh_conn_id."):
+        with pytest.raises(AirflowException, match="Cannot operate without ssh_hook or ssh_conn_id."):
             task_0 = SFTPOperator(
                 task_id="test_sftp_0",
                 local_filepath=self.test_local_filepath,
                 remote_filepath=self.test_remote_filepath,
                 operation=SFTPOperation.PUT,
-                dag=self.dag
+                dag=self.dag,
             )
             task_0.execute(None)
 
@@ -378,13 +379,13 @@ class TestSFTPOperator(unittest.TestCase):
             local_filepath=self.test_local_filepath,
             remote_filepath=self.test_remote_filepath,
             operation=SFTPOperation.PUT,
-            dag=self.dag
+            dag=self.dag,
         )
         try:
             task_1.execute(None)
         except Exception:  # pylint: disable=broad-except
             pass
-        self.assertEqual(task_1.ssh_hook.ssh_conn_id, TEST_CONN_ID)
+        assert task_1.ssh_hook.ssh_conn_id == TEST_CONN_ID
 
         task_2 = SFTPOperator(
             task_id="test_sftp_2",
@@ -392,13 +393,13 @@ class TestSFTPOperator(unittest.TestCase):
             local_filepath=self.test_local_filepath,
             remote_filepath=self.test_remote_filepath,
             operation=SFTPOperation.PUT,
-            dag=self.dag
+            dag=self.dag,
         )
         try:
             task_2.execute(None)
         except Exception:  # pylint: disable=broad-except
             pass
-        self.assertEqual(task_2.ssh_hook.ssh_conn_id, TEST_CONN_ID)
+        assert task_2.ssh_hook.ssh_conn_id == TEST_CONN_ID
 
         # if both valid ssh_hook and ssh_conn_id are provided, ignore ssh_conn_id
         task_3 = SFTPOperator(
@@ -408,13 +409,13 @@ class TestSFTPOperator(unittest.TestCase):
             local_filepath=self.test_local_filepath,
             remote_filepath=self.test_remote_filepath,
             operation=SFTPOperation.PUT,
-            dag=self.dag
+            dag=self.dag,
         )
         try:
             task_3.execute(None)
         except Exception:  # pylint: disable=broad-except
             pass
-        self.assertEqual(task_3.ssh_hook.ssh_conn_id, self.hook.ssh_conn_id)
+        assert task_3.ssh_hook.ssh_conn_id == self.hook.ssh_conn_id
 
     def delete_local_resource(self):
         if os.path.exists(self.test_local_filepath):
@@ -430,11 +431,11 @@ class TestSFTPOperator(unittest.TestCase):
             remove_file_task = SSHOperator(
                 task_id="test_check_file",
                 ssh_hook=self.hook,
-                command="rm {0}".format(self.test_remote_filepath),
+                command=f"rm {self.test_remote_filepath}",
                 do_xcom_push=True,
-                dag=self.dag
+                dag=self.dag,
             )
-            self.assertIsNotNone(remove_file_task)
+            assert remove_file_task is not None
             ti3 = TaskInstance(task=remove_file_task, execution_date=timezone.utcnow())
             ti3.run()
         if os.path.exists(self.test_remote_filepath_int_dir):

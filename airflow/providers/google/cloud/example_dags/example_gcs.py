@@ -24,9 +24,17 @@ import os
 from airflow import models
 from airflow.operators.bash import BashOperator
 from airflow.providers.google.cloud.operators.gcs import (
-    GCSBucketCreateAclEntryOperator, GCSCreateBucketOperator, GCSDeleteBucketOperator,
-    GCSDeleteObjectsOperator, GCSFileTransformOperator, GCSListObjectsOperator,
+    GCSBucketCreateAclEntryOperator,
+    GCSCreateBucketOperator,
+    GCSDeleteBucketOperator,
+    GCSDeleteObjectsOperator,
+    GCSFileTransformOperator,
+    GCSListObjectsOperator,
     GCSObjectCreateAclEntryOperator,
+)
+from airflow.providers.google.cloud.sensors.gcs import (
+    GCSObjectExistenceSensor,
+    GCSObjectsWithPrefixExistenceSensor,
 )
 from airflow.providers.google.cloud.transfers.gcs_to_gcs import GCSToGCSOperator
 from airflow.providers.google.cloud.transfers.gcs_to_local import GCSToLocalFilesystemOperator
@@ -40,22 +48,20 @@ GCS_ACL_ENTITY = os.environ.get("GCS_ACL_ENTITY", "allUsers")
 GCS_ACL_BUCKET_ROLE = "OWNER"
 GCS_ACL_OBJECT_ROLE = "OWNER"
 
-BUCKET_2 = os.environ.get("GCP_GCS_BUCKET_1", "test-gcs-example-bucket-2")
+BUCKET_2 = os.environ.get("GCP_GCS_BUCKET_2", "test-gcs-example-bucket-2")
 
-PATH_TO_TRANSFORM_SCRIPT = os.environ.get(
-    'GCP_GCS_PATH_TO_TRANSFORM_SCRIPT', 'test.py'
-)
-PATH_TO_UPLOAD_FILE = os.environ.get(
-    "GCP_GCS_PATH_TO_UPLOAD_FILE", "test-gcs-example.txt"
-)
-PATH_TO_SAVED_FILE = os.environ.get(
-    "GCP_GCS_PATH_TO_SAVED_FILE", "test-gcs-example-download.txt"
-)
+PATH_TO_TRANSFORM_SCRIPT = os.environ.get('GCP_GCS_PATH_TO_TRANSFORM_SCRIPT', 'test.py')
+PATH_TO_UPLOAD_FILE = os.environ.get("GCP_GCS_PATH_TO_UPLOAD_FILE", "test-gcs-example.txt")
+PATH_TO_UPLOAD_FILE_PREFIX = os.environ.get("GCP_GCS_PATH_TO_UPLOAD_FILE_PREFIX", "test-gcs-")
+PATH_TO_SAVED_FILE = os.environ.get("GCP_GCS_PATH_TO_SAVED_FILE", "test-gcs-example-download.txt")
 
 BUCKET_FILE_LOCATION = PATH_TO_UPLOAD_FILE.rpartition("/")[-1]
 
 with models.DAG(
-    "example_gcs", start_date=days_ago(1), schedule_interval=None, tags=['example'],
+    "example_gcs",
+    start_date=days_ago(1),
+    schedule_interval=None,
+    tags=['example'],
 ) as dag:
     create_bucket1 = GCSCreateBucketOperator(
         task_id="create_bucket1", bucket_name=BUCKET_1, project_id=PROJECT_ID
@@ -65,9 +71,7 @@ with models.DAG(
         task_id="create_bucket2", bucket_name=BUCKET_2, project_id=PROJECT_ID
     )
 
-    list_buckets = GCSListObjectsOperator(
-        task_id="list_buckets", bucket=BUCKET_1
-    )
+    list_buckets = GCSListObjectsOperator(task_id="list_buckets", bucket=BUCKET_1)
 
     list_buckets_result = BashOperator(
         task_id="list_buckets_result",
@@ -85,7 +89,7 @@ with models.DAG(
         task_id="transform_file",
         source_bucket=BUCKET_1,
         source_object=BUCKET_FILE_LOCATION,
-        transform_script=["python", PATH_TO_TRANSFORM_SCRIPT]
+        transform_script=["python", PATH_TO_TRANSFORM_SCRIPT],
     )
     # [START howto_operator_gcs_bucket_create_acl_entry_task]
     gcs_bucket_create_acl_entry_task = GCSBucketCreateAclEntryOperator(
@@ -151,6 +155,41 @@ with models.DAG(
     copy_file >> delete_bucket_1
     copy_file >> delete_bucket_2
     delete_files >> delete_bucket_1
+
+with models.DAG(
+    "example_gcs_sensors",
+    start_date=days_ago(1),
+    schedule_interval=None,
+    tags=['example'],
+) as dag2:
+    create_bucket = GCSCreateBucketOperator(
+        task_id="create_bucket", bucket_name=BUCKET_1, project_id=PROJECT_ID
+    )
+    upload_file = LocalFilesystemToGCSOperator(
+        task_id="upload_file",
+        src=PATH_TO_UPLOAD_FILE,
+        dst=BUCKET_FILE_LOCATION,
+        bucket=BUCKET_1,
+    )
+    # [START howto_sensor_object_exists_task]
+    gcs_object_exists = GCSObjectExistenceSensor(
+        bucket=BUCKET_1,
+        object=PATH_TO_UPLOAD_FILE,
+        mode='poke',
+        task_id="gcs_object_exists_task",
+    )
+    # [END howto_sensor_object_exists_task]
+    # [START howto_sensor_object_with_prefix_exists_task]
+    gcs_object_with_prefix_exists = GCSObjectsWithPrefixExistenceSensor(
+        bucket=BUCKET_1,
+        prefix=PATH_TO_UPLOAD_FILE_PREFIX,
+        mode='poke',
+        task_id="gcs_object_with_prefix_exists_task",
+    )
+    # [END howto_sensor_object_with_prefix_exists_task]
+    delete_bucket = GCSDeleteBucketOperator(task_id="delete_bucket", bucket_name=BUCKET_1)
+
+    create_bucket >> upload_file >> [gcs_object_exists, gcs_object_with_prefix_exists] >> delete_bucket
 
 
 if __name__ == '__main__':

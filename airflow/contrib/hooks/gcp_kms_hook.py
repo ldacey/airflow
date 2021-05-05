@@ -15,7 +15,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""This module is deprecated. Please use `airflow.providers.google.cloud.hooks.kms`."""
+"""This module is deprecated. Please use :mod:`airflow.providers.google.cloud.hooks.kms`."""
 
 import warnings
 
@@ -23,18 +23,18 @@ from airflow.providers.google.cloud.hooks.kms import CloudKMSHook
 
 warnings.warn(
     "This module is deprecated. Please use `airflow.providers.google.cloud.hooks.kms`.",
-    DeprecationWarning, stacklevel=2
+    DeprecationWarning,
+    stacklevel=2,
 )
 
 
 class GoogleCloudKMSHook(CloudKMSHook):
-    """
-    This class is deprecated. Please use `airflow.providers.google.cloud.hooks.kms.CloudKMSHook`.
-    """
+    """This class is deprecated. Please use `airflow.providers.google.cloud.hooks.kms.CloudKMSHook`."""
 
     def __init__(self, *args, **kwargs):
         warnings.warn(
             "This class is deprecated. Please use `airflow.providers.google.cloud.hooks.kms.CloudKMSHook`.",
-            DeprecationWarning, stacklevel=2
+            DeprecationWarning,
+            stacklevel=2,
         )
         super().__init__(*args, **kwargs)

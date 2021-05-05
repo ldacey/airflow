@@ -15,7 +15,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""This module is deprecated. Please use `airflow.providers.google.cloud.hooks.spanner`."""
+"""This module is deprecated. Please use :mod:`airflow.providers.google.cloud.hooks.spanner`."""
 
 import warnings
 
@@ -29,9 +29,7 @@ warnings.warn(
 
 
 class CloudSpannerHook(SpannerHook):
-    """
-    This class is deprecated. Please use `airflow.providers.google.cloud.hooks.spanner.SpannerHook`.
-    """
+    """This class is deprecated. Please use `airflow.providers.google.cloud.hooks.spanner.SpannerHook`."""
 
     def __init__(self, *args, **kwargs):
         warnings.warn(self.__doc__, DeprecationWarning, stacklevel=2)

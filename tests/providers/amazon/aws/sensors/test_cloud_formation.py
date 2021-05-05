@@ -16,12 +16,14 @@
 # specific language governing permissions and limitations
 # under the License.
 import unittest
+from unittest.mock import MagicMock, patch
 
 import boto3
-from mock import MagicMock, patch
+import pytest
 
 from airflow.providers.amazon.aws.sensors.cloud_formation import (
-    CloudFormationCreateStackSensor, CloudFormationDeleteStackSensor,
+    CloudFormationCreateStackSensor,
+    CloudFormationDeleteStackSensor,
 )
 
 try:
@@ -30,8 +32,9 @@ except ImportError:
     mock_cloudformation = None
 
 
-@unittest.skipIf(mock_cloudformation is None,
-                 "Skipping test because moto.mock_cloudformation is not available")
+@unittest.skipIf(
+    mock_cloudformation is None, "Skipping test because moto.mock_cloudformation is not available"
+)
 class TestCloudFormationCreateStackSensor(unittest.TestCase):
     task_id = 'test_cloudformation_cluster_create_sensor'
 
@@ -51,7 +54,7 @@ class TestCloudFormationCreateStackSensor(unittest.TestCase):
         stack_name = 'foobar'
         self.client.create_stack(StackName=stack_name, TemplateBody='{"Resources": {}}')
         op = CloudFormationCreateStackSensor(task_id='task', stack_name='foobar')
-        self.assertTrue(op.poke({}))
+        assert op.poke({})
 
     def test_poke_false(self):
         with patch('boto3.session.Session', self.boto3_session_mock):
@@ -59,22 +62,23 @@ class TestCloudFormationCreateStackSensor(unittest.TestCase):
                 'Stacks': [{'StackStatus': 'CREATE_IN_PROGRESS'}]
             }
             op = CloudFormationCreateStackSensor(task_id='task', stack_name='foo')
-            self.assertFalse(op.poke({}))
+            assert not op.poke({})
 
     def test_poke_stack_in_unsuccessful_state(self):
         with patch('boto3.session.Session', self.boto3_session_mock):
             self.cloudformation_client_mock.describe_stacks.return_value = {
                 'Stacks': [{'StackStatus': 'bar'}]
             }
-            with self.assertRaises(ValueError) as error:
+            with pytest.raises(ValueError) as ctx:
                 op = CloudFormationCreateStackSensor(task_id='task', stack_name='foo')
                 op.poke({})
 
-            self.assertEqual('Stack foo in bad state: bar', str(error.exception))
+            assert 'Stack foo in bad state: bar' == str(ctx.value)
 
 
-@unittest.skipIf(mock_cloudformation is None,
-                 "Skipping test because moto.mock_cloudformation is not available")
+@unittest.skipIf(
+    mock_cloudformation is None, "Skipping test because moto.mock_cloudformation is not available"
+)
 class TestCloudFormationDeleteStackSensor(unittest.TestCase):
     task_id = 'test_cloudformation_cluster_delete_sensor'
 
@@ -95,7 +99,7 @@ class TestCloudFormationDeleteStackSensor(unittest.TestCase):
         self.client.create_stack(StackName=stack_name, TemplateBody='{"Resources": {}}')
         self.client.delete_stack(StackName=stack_name)
         op = CloudFormationDeleteStackSensor(task_id='task', stack_name=stack_name)
-        self.assertTrue(op.poke({}))
+        assert op.poke({})
 
     def test_poke_false(self):
         with patch('boto3.session.Session', self.boto3_session_mock):
@@ -103,20 +107,20 @@ class TestCloudFormationDeleteStackSensor(unittest.TestCase):
                 'Stacks': [{'StackStatus': 'DELETE_IN_PROGRESS'}]
             }
             op = CloudFormationDeleteStackSensor(task_id='task', stack_name='foo')
-            self.assertFalse(op.poke({}))
+            assert not op.poke({})
 
     def test_poke_stack_in_unsuccessful_state(self):
         with patch('boto3.session.Session', self.boto3_session_mock):
             self.cloudformation_client_mock.describe_stacks.return_value = {
                 'Stacks': [{'StackStatus': 'bar'}]
             }
-            with self.assertRaises(ValueError) as error:
+            with pytest.raises(ValueError) as ctx:
                 op = CloudFormationDeleteStackSensor(task_id='task', stack_name='foo')
                 op.poke({})
 
-            self.assertEqual('Stack foo in bad state: bar', str(error.exception))
+            assert 'Stack foo in bad state: bar' == str(ctx.value)
 
     @mock_cloudformation
     def test_poke_stack_does_not_exist(self):
         op = CloudFormationDeleteStackSensor(task_id='task', stack_name='foo')
-        self.assertTrue(op.poke({}))
+        assert op.poke({})

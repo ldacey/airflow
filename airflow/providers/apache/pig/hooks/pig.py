@@ -20,7 +20,7 @@ from tempfile import NamedTemporaryFile, TemporaryDirectory
 from typing import Any, List, Optional
 
 from airflow.exceptions import AirflowException
-from airflow.hooks.base_hook import BaseHook
+from airflow.hooks.base import BaseHook
 
 
 class PigCliHook(BaseHook):
@@ -33,17 +33,19 @@ class PigCliHook(BaseHook):
 
     """
 
-    def __init__(
-            self,
-            pig_cli_conn_id: str = "pig_cli_default") -> None:
+    conn_name_attr = 'pig_cli_conn_id'
+    default_conn_name = 'pig_cli_default'
+    conn_type = 'pig_cli'
+    hook_name = 'Pig Client Wrapper'
+
+    def __init__(self, pig_cli_conn_id: str = default_conn_name) -> None:
         super().__init__()
         conn = self.get_connection(pig_cli_conn_id)
         self.pig_properties = conn.extra_dejson.get('pig_properties', '')
         self.conn = conn
         self.sub_process = None
 
-    def run_cli(self, pig: str, pig_opts: Optional[str] = None,
-                verbose: bool = True) -> Any:
+    def run_cli(self, pig: str, pig_opts: Optional[str] = None, verbose: bool = True) -> Any:
         """
         Run an pig script using the pig cli
 
@@ -52,7 +54,6 @@ class PigCliHook(BaseHook):
         >>> ("hdfs://" in result)
         True
         """
-
         with TemporaryDirectory(prefix='airflow_pigop_') as tmp_dir:
             with NamedTemporaryFile(dir=tmp_dir) as f:
                 f.write(pig.encode('utf-8'))
@@ -75,11 +76,8 @@ class PigCliHook(BaseHook):
                 if verbose:
                     self.log.info("%s", " ".join(pig_cmd))
                 sub_process: Any = subprocess.Popen(
-                    pig_cmd,
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.STDOUT,
-                    cwd=tmp_dir,
-                    close_fds=True)
+                    pig_cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, cwd=tmp_dir, close_fds=True
+                )
                 self.sub_process = sub_process
                 stdout = ''
                 for line in iter(sub_process.stdout.readline, b''):
@@ -94,9 +92,7 @@ class PigCliHook(BaseHook):
                 return stdout
 
     def kill(self) -> None:
-        """
-        Kill Pig job
-        """
+        """Kill Pig job"""
         if self.sub_process:
             if self.sub_process.poll() is None:
                 self.log.info("Killing the Pig job")

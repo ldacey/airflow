@@ -19,9 +19,10 @@
 import json
 import unittest
 from datetime import datetime
+from unittest import mock
 
-import mock
 import numpy
+import pytest
 
 from airflow.models import Connection
 from airflow.providers.oracle.hooks.oracle import OracleHook
@@ -35,16 +36,10 @@ except ImportError:
 
 @unittest.skipIf(cx_Oracle is None, 'cx_Oracle package not present')
 class TestOracleHookConn(unittest.TestCase):
-
     def setUp(self):
         super().setUp()
 
-        self.connection = Connection(
-            login='login',
-            password='password',
-            host='host',
-            port=1521
-        )
+        self.connection = Connection(login='login', password='password', host='host', port=1521)
 
         self.db_hook = OracleHook()
         self.db_hook.get_connection = mock.Mock()
@@ -55,10 +50,10 @@ class TestOracleHookConn(unittest.TestCase):
         self.db_hook.get_conn()
         assert mock_connect.call_count == 1
         args, kwargs = mock_connect.call_args
-        self.assertEqual(args, ())
-        self.assertEqual(kwargs['user'], 'login')
-        self.assertEqual(kwargs['password'], 'password')
-        self.assertEqual(kwargs['dsn'], 'host')
+        assert args == ()
+        assert kwargs['user'] == 'login'
+        assert kwargs['password'] == 'password'
+        assert kwargs['dsn'] == 'host'
 
     @mock.patch('airflow.providers.oracle.hooks.oracle.cx_Oracle.connect')
     def test_get_conn_sid(self, mock_connect):
@@ -67,10 +62,8 @@ class TestOracleHookConn(unittest.TestCase):
         self.db_hook.get_conn()
         assert mock_connect.call_count == 1
         args, kwargs = mock_connect.call_args
-        self.assertEqual(args, ())
-        self.assertEqual(kwargs['dsn'],
-                         cx_Oracle.makedsn(dsn_sid['dsn'],
-                                           self.connection.port, dsn_sid['sid']))
+        assert args == ()
+        assert kwargs['dsn'] == cx_Oracle.makedsn(dsn_sid['dsn'], self.connection.port, dsn_sid['sid'])
 
     @mock.patch('airflow.providers.oracle.hooks.oracle.cx_Oracle.connect')
     def test_get_conn_service_name(self, mock_connect):
@@ -79,10 +72,10 @@ class TestOracleHookConn(unittest.TestCase):
         self.db_hook.get_conn()
         assert mock_connect.call_count == 1
         args, kwargs = mock_connect.call_args
-        self.assertEqual(args, ())
-        self.assertEqual(kwargs['dsn'], cx_Oracle.makedsn(
-            dsn_service_name['dsn'], self.connection.port,
-            service_name=dsn_service_name['service_name']))
+        assert args == ()
+        assert kwargs['dsn'] == cx_Oracle.makedsn(
+            dsn_service_name['dsn'], self.connection.port, service_name=dsn_service_name['service_name']
+        )
 
     @mock.patch('airflow.providers.oracle.hooks.oracle.cx_Oracle.connect')
     def test_get_conn_encoding_without_nencoding(self, mock_connect):
@@ -90,9 +83,9 @@ class TestOracleHookConn(unittest.TestCase):
         self.db_hook.get_conn()
         assert mock_connect.call_count == 1
         args, kwargs = mock_connect.call_args
-        self.assertEqual(args, ())
-        self.assertEqual(kwargs['encoding'], 'UTF-8')
-        self.assertEqual(kwargs['nencoding'], 'UTF-8')
+        assert args == ()
+        assert kwargs['encoding'] == 'UTF-8'
+        assert kwargs['nencoding'] == 'UTF-8'
 
     @mock.patch('airflow.providers.oracle.hooks.oracle.cx_Oracle.connect')
     def test_get_conn_encoding_with_nencoding(self, mock_connect):
@@ -100,9 +93,9 @@ class TestOracleHookConn(unittest.TestCase):
         self.db_hook.get_conn()
         assert mock_connect.call_count == 1
         args, kwargs = mock_connect.call_args
-        self.assertEqual(args, ())
-        self.assertEqual(kwargs['encoding'], 'UTF-8')
-        self.assertEqual(kwargs['nencoding'], 'gb2312')
+        assert args == ()
+        assert kwargs['encoding'] == 'UTF-8'
+        assert kwargs['nencoding'] == 'gb2312'
 
     @mock.patch('airflow.providers.oracle.hooks.oracle.cx_Oracle.connect')
     def test_get_conn_nencoding(self, mock_connect):
@@ -110,9 +103,9 @@ class TestOracleHookConn(unittest.TestCase):
         self.db_hook.get_conn()
         assert mock_connect.call_count == 1
         args, kwargs = mock_connect.call_args
-        self.assertEqual(args, ())
-        self.assertNotIn('encoding', kwargs)
-        self.assertEqual(kwargs['nencoding'], 'UTF-8')
+        assert args == ()
+        assert 'encoding' not in kwargs
+        assert kwargs['nencoding'] == 'UTF-8'
 
     @mock.patch('airflow.providers.oracle.hooks.oracle.cx_Oracle.connect')
     def test_get_conn_mode(self, mock_connect):
@@ -132,8 +125,8 @@ class TestOracleHookConn(unittest.TestCase):
                 assert mock_connect.call_count == 1
                 first = False
             args, kwargs = mock_connect.call_args
-            self.assertEqual(args, ())
-            self.assertEqual(kwargs['mode'], mode.get(mod))
+            assert args == ()
+            assert kwargs['mode'] == mode.get(mod)
 
     @mock.patch('airflow.providers.oracle.hooks.oracle.cx_Oracle.connect')
     def test_get_conn_threaded(self, mock_connect):
@@ -141,8 +134,8 @@ class TestOracleHookConn(unittest.TestCase):
         self.db_hook.get_conn()
         assert mock_connect.call_count == 1
         args, kwargs = mock_connect.call_args
-        self.assertEqual(args, ())
-        self.assertEqual(kwargs['threaded'], True)
+        assert args == ()
+        assert kwargs['threaded'] is True
 
     @mock.patch('airflow.providers.oracle.hooks.oracle.cx_Oracle.connect')
     def test_get_conn_events(self, mock_connect):
@@ -150,15 +143,15 @@ class TestOracleHookConn(unittest.TestCase):
         self.db_hook.get_conn()
         assert mock_connect.call_count == 1
         args, kwargs = mock_connect.call_args
-        self.assertEqual(args, ())
-        self.assertEqual(kwargs['events'], True)
+        assert args == ()
+        assert kwargs['events'] is True
 
     @mock.patch('airflow.providers.oracle.hooks.oracle.cx_Oracle.connect')
     def test_get_conn_purity(self, mock_connect):
         purity = {
             'new': cx_Oracle.ATTR_PURITY_NEW,
             'self': cx_Oracle.ATTR_PURITY_SELF,
-            'default': cx_Oracle.ATTR_PURITY_DEFAULT
+            'default': cx_Oracle.ATTR_PURITY_DEFAULT,
         }
         first = True
         for pur in purity:
@@ -168,8 +161,8 @@ class TestOracleHookConn(unittest.TestCase):
                 assert mock_connect.call_count == 1
                 first = False
             args, kwargs = mock_connect.call_args
-            self.assertEqual(args, ())
-            self.assertEqual(kwargs['purity'], purity.get(pur))
+            assert args == ()
+            assert kwargs['purity'] == purity.get(pur)
 
 
 @unittest.skipIf(cx_Oracle is None, 'cx_Oracle package not present')
@@ -204,34 +197,61 @@ class TestOracleHook(unittest.TestCase):
         assert self.conn.commit.called
 
     def test_insert_rows_with_fields(self):
-        rows = [("'basestr_with_quote", None, numpy.NAN,
-                 numpy.datetime64('2019-01-24T01:02:03'),
-                 datetime(2019, 1, 24), 1, 10.24, 'str')]
-        target_fields = ['basestring', 'none', 'numpy_nan', 'numpy_datetime64',
-                         'datetime', 'int', 'float', 'str']
+        rows = [
+            (
+                "'basestr_with_quote",
+                None,
+                numpy.NAN,
+                numpy.datetime64('2019-01-24T01:02:03'),
+                datetime(2019, 1, 24),
+                1,
+                10.24,
+                'str',
+            )
+        ]
+        target_fields = [
+            'basestring',
+            'none',
+            'numpy_nan',
+            'numpy_datetime64',
+            'datetime',
+            'int',
+            'float',
+            'str',
+        ]
         self.db_hook.insert_rows('table', rows, target_fields)
         self.cur.execute.assert_called_once_with(
             "INSERT /*+ APPEND */ INTO table "
             "(basestring, none, numpy_nan, numpy_datetime64, datetime, int, float, str) "
             "VALUES ('''basestr_with_quote',NULL,NULL,'2019-01-24T01:02:03',"
-            "to_date('2019-01-24 00:00:00','YYYY-MM-DD HH24:MI:SS'),1,10.24,'str')")
+            "to_date('2019-01-24 00:00:00','YYYY-MM-DD HH24:MI:SS'),1,10.24,'str')"
+        )
 
     def test_insert_rows_without_fields(self):
-        rows = [("'basestr_with_quote", None, numpy.NAN,
-                 numpy.datetime64('2019-01-24T01:02:03'),
-                 datetime(2019, 1, 24), 1, 10.24, 'str')]
+        rows = [
+            (
+                "'basestr_with_quote",
+                None,
+                numpy.NAN,
+                numpy.datetime64('2019-01-24T01:02:03'),
+                datetime(2019, 1, 24),
+                1,
+                10.24,
+                'str',
+            )
+        ]
         self.db_hook.insert_rows('table', rows)
         self.cur.execute.assert_called_once_with(
             "INSERT /*+ APPEND */ INTO table "
             " VALUES ('''basestr_with_quote',NULL,NULL,'2019-01-24T01:02:03',"
-            "to_date('2019-01-24 00:00:00','YYYY-MM-DD HH24:MI:SS'),1,10.24,'str')")
+            "to_date('2019-01-24 00:00:00','YYYY-MM-DD HH24:MI:SS'),1,10.24,'str')"
+        )
 
     def test_bulk_insert_rows_with_fields(self):
         rows = [(1, 2, 3), (4, 5, 6), (7, 8, 9)]
         target_fields = ['col1', 'col2', 'col3']
         self.db_hook.bulk_insert_rows('table', rows, target_fields)
-        self.cur.prepare.assert_called_once_with(
-            "insert into table (col1, col2, col3) values (:1, :2, :3)")
+        self.cur.prepare.assert_called_once_with("insert into table (col1, col2, col3) values (:1, :2, :3)")
         self.cur.executemany.assert_called_once_with(None, rows)
 
     def test_bulk_insert_rows_with_commit_every(self):
@@ -252,10 +272,10 @@ class TestOracleHook(unittest.TestCase):
     def test_bulk_insert_rows_without_fields(self):
         rows = [(1, 2, 3), (4, 5, 6), (7, 8, 9)]
         self.db_hook.bulk_insert_rows('table', rows)
-        self.cur.prepare.assert_called_once_with(
-            "insert into table  values (:1, :2, :3)")
+        self.cur.prepare.assert_called_once_with("insert into table  values (:1, :2, :3)")
         self.cur.executemany.assert_called_once_with(None, rows)
 
     def test_bulk_insert_rows_no_rows(self):
         rows = []
-        self.assertRaises(ValueError, self.db_hook.bulk_insert_rows, 'table', rows)
+        with pytest.raises(ValueError):
+            self.db_hook.bulk_insert_rows('table', rows)

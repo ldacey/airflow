@@ -15,6 +15,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# pylint: disable=no-value-for-parameter
 
 import unittest
 from unittest.mock import Mock
@@ -24,7 +25,6 @@ from airflow.ti_deps.deps.dag_unpaused_dep import DagUnpausedDep
 
 
 class TestDagUnpausedDep(unittest.TestCase):
-
     def test_concurrency_reached(self):
         """
         Test paused DAG should fail dependency
@@ -33,7 +33,7 @@ class TestDagUnpausedDep(unittest.TestCase):
         task = Mock(dag=dag)
         ti = TaskInstance(task=task, execution_date=None)
 
-        self.assertFalse(DagUnpausedDep().is_met(ti=ti))
+        assert not DagUnpausedDep().is_met(ti=ti)
 
     def test_all_conditions_met(self):
         """
@@ -43,4 +43,4 @@ class TestDagUnpausedDep(unittest.TestCase):
         task = Mock(dag=dag)
         ti = TaskInstance(task=task, execution_date=None)
 
-        self.assertTrue(DagUnpausedDep().is_met(ti=ti))
+        assert DagUnpausedDep().is_met(ti=ti)

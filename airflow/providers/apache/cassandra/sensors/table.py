@@ -24,7 +24,7 @@ of a table in a Cassandra cluster.
 from typing import Any, Dict
 
 from airflow.providers.apache.cassandra.hooks.cassandra import CassandraHook
-from airflow.sensors.base_sensor_operator import BaseSensorOperator
+from airflow.sensors.base import BaseSensorOperator
 from airflow.utils.decorators import apply_defaults
 
 
@@ -51,6 +51,7 @@ class CassandraTableSensor(BaseSensorOperator):
         when connecting to Cassandra cluster
     :type cassandra_conn_id: str
     """
+
     template_fields = ('table',)
 
     @apply_defaults

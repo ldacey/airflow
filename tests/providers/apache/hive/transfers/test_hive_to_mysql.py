@@ -18,7 +18,7 @@
 import os
 import re
 import unittest
-from unittest.mock import MagicMock, PropertyMock, patch
+from unittest.mock import MagicMock, patch
 
 from airflow.providers.apache.hive.transfers.hive_to_mysql import HiveToMySqlOperator
 from airflow.utils import timezone
@@ -30,7 +30,6 @@ DEFAULT_DATE = timezone.datetime(2015, 1, 1)
 
 
 class TestHiveToMySqlTransfer(TestHiveEnvironment):
-
     def setUp(self):
         self.kwargs = dict(
             sql='sql',
@@ -50,8 +49,7 @@ class TestHiveToMySqlTransfer(TestHiveEnvironment):
         mock_hive_hook.return_value.get_records.assert_called_once_with('sql', hive_conf={})
         mock_mysql_hook.assert_called_once_with(mysql_conn_id=self.kwargs['mysql_conn_id'])
         mock_mysql_hook.return_value.insert_rows.assert_called_once_with(
-            table=self.kwargs['mysql_table'],
-            rows=mock_hive_hook.return_value.get_records.return_value
+            table=self.kwargs['mysql_table'], rows=mock_hive_hook.return_value.get_records.return_value
         )
 
     @patch('airflow.providers.apache.hive.transfers.hive_to_mysql.MySqlHook')
@@ -75,27 +73,28 @@ class TestHiveToMySqlTransfer(TestHiveEnvironment):
     @patch('airflow.providers.apache.hive.transfers.hive_to_mysql.MySqlHook')
     @patch('airflow.providers.apache.hive.transfers.hive_to_mysql.NamedTemporaryFile')
     @patch('airflow.providers.apache.hive.transfers.hive_to_mysql.HiveServer2Hook')
-    def test_execute_bulk_load(self, mock_hive_hook, mock_tmp_file, mock_mysql_hook):
-        type(mock_tmp_file).name = PropertyMock(return_value='tmp_file')
+    def test_execute_bulk_load(self, mock_hive_hook, mock_tmp_file_context, mock_mysql_hook):
+        mock_tmp_file = MagicMock()
+        mock_tmp_file.name = 'tmp_file'
+        mock_tmp_file_context.return_value.__enter__.return_value = mock_tmp_file
         context = {}
         self.kwargs.update(dict(bulk_load=True))
 
         HiveToMySqlOperator(**self.kwargs).execute(context=context)
 
-        mock_tmp_file.assert_called_once_with()
+        mock_tmp_file_context.assert_called_once_with()
         mock_hive_hook.return_value.to_csv.assert_called_once_with(
             self.kwargs['sql'],
-            mock_tmp_file.return_value.name,
+            'tmp_file',
             delimiter='\t',
             lineterminator='\n',
             output_header=False,
-            hive_conf=context_to_airflow_vars(context)
+            hive_conf=context_to_airflow_vars(context),
         )
         mock_mysql_hook.return_value.bulk_load.assert_called_once_with(
-            table=self.kwargs['mysql_table'],
-            tmp_file=mock_tmp_file.return_value.name
+            table=self.kwargs['mysql_table'], tmp_file='tmp_file'
         )
-        mock_tmp_file.return_value.close.assert_called_once_with()
+        mock_tmp_file_context.return_value.__exit__.assert_called_once_with(None, None, None)
 
     @patch('airflow.providers.apache.hive.transfers.hive_to_mysql.MySqlHook')
     def test_execute_with_hive_conf(self, mock_mysql_hook):
@@ -105,21 +104,20 @@ class TestHiveToMySqlTransfer(TestHiveEnvironment):
 
         self.kwargs.update(dict(hive_conf={'mapreduce.job.queuename': 'fake_queue'}))
 
-        with patch('airflow.providers.apache.hive.transfers.hive_to_mysql.HiveServer2Hook',
-                   return_value=mock_hive_hook):
+        with patch(
+            'airflow.providers.apache.hive.transfers.hive_to_mysql.HiveServer2Hook',
+            return_value=mock_hive_hook,
+        ):
             HiveToMySqlOperator(**self.kwargs).execute(context=context)
 
             hive_conf = context_to_airflow_vars(context)
             hive_conf.update(self.kwargs['hive_conf'])
 
-        mock_hive_hook.get_records.assert_called_once_with(
-            self.kwargs['sql'],
-            hive_conf=hive_conf
-        )
+        mock_hive_hook.get_records.assert_called_once_with(self.kwargs['sql'], hive_conf=hive_conf)
 
     @unittest.skipIf(
-        'AIRFLOW_RUNALL_TESTS' not in os.environ,
-        "Skipped because AIRFLOW_RUNALL_TESTS is not set")
+        'AIRFLOW_RUNALL_TESTS' not in os.environ, "Skipped because AIRFLOW_RUNALL_TESTS is not set"
+    )
     def test_hive_to_mysql(self):
         test_hive_results = 'test_hive_results'
 
@@ -130,10 +128,14 @@ class TestHiveToMySqlTransfer(TestHiveEnvironment):
         mock_mysql_hook.run = MagicMock()
         mock_mysql_hook.insert_rows = MagicMock()
 
-        with patch('airflow.providers.apache.hive.transfers.hive_to_mysql.HiveServer2Hook',
-                   return_value=mock_hive_hook):
-            with patch('airflow.providers.apache.hive.transfers.hive_to_mysql.MySqlHook',
-                       return_value=mock_mysql_hook):
+        with patch(
+            'airflow.providers.apache.hive.transfers.hive_to_mysql.HiveServer2Hook',
+            return_value=mock_hive_hook,
+        ):
+            with patch(
+                'airflow.providers.apache.hive.transfers.hive_to_mysql.MySqlHook',
+                return_value=mock_mysql_hook,
+            ):
 
                 op = HiveToMySqlOperator(
                     mysql_conn_id='airflow_db',
@@ -148,25 +150,29 @@ class TestHiveToMySqlTransfer(TestHiveEnvironment):
                         'DROP TABLE IF EXISTS test_static_babynames;',
                         'CREATE TABLE test_static_babynames (name VARCHAR(500))',
                     ],
-                    dag=self.dag)
+                    dag=self.dag,
+                )
                 op.clear(start_date=DEFAULT_DATE, end_date=DEFAULT_DATE)
-                op.run(start_date=DEFAULT_DATE, end_date=DEFAULT_DATE,
-                       ignore_ti_state=True)
+                op.run(start_date=DEFAULT_DATE, end_date=DEFAULT_DATE, ignore_ti_state=True)
 
         raw_select_name_query = mock_hive_hook.get_records.call_args_list[0][0][0]
         actual_select_name_query = re.sub(r'\s{2,}', ' ', raw_select_name_query).strip()
         expected_select_name_query = 'SELECT name FROM airflow.static_babynames LIMIT 100'
-        self.assertEqual(expected_select_name_query, actual_select_name_query)
+        assert expected_select_name_query == actual_select_name_query
 
         actual_hive_conf = mock_hive_hook.get_records.call_args_list[0][1]['hive_conf']
-        expected_hive_conf = {'airflow.ctx.dag_owner': 'airflow',
-                              'airflow.ctx.dag_id': 'test_dag_id',
-                              'airflow.ctx.task_id': 'hive_to_mysql_check',
-                              'airflow.ctx.execution_date': '2015-01-01T00:00:00+00:00'}
-        self.assertEqual(expected_hive_conf, actual_hive_conf)
+        expected_hive_conf = {
+            'airflow.ctx.dag_owner': 'airflow',
+            'airflow.ctx.dag_id': 'test_dag_id',
+            'airflow.ctx.task_id': 'hive_to_mysql_check',
+            'airflow.ctx.execution_date': '2015-01-01T00:00:00+00:00',
+        }
+        assert expected_hive_conf == actual_hive_conf
 
-        expected_mysql_preoperator = ['DROP TABLE IF EXISTS test_static_babynames;',
-                                      'CREATE TABLE test_static_babynames (name VARCHAR(500))']
+        expected_mysql_preoperator = [
+            'DROP TABLE IF EXISTS test_static_babynames;',
+            'CREATE TABLE test_static_babynames (name VARCHAR(500))',
+        ]
         mock_mysql_hook.run.assert_called_with(expected_mysql_preoperator)
 
         mock_mysql_hook.insert_rows.assert_called_with(table='test_static_babynames', rows=test_hive_results)

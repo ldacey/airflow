@@ -15,7 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 """
-This module is deprecated. Please use `airflow.providers.google.cloud.log.stackdriver_task_handler`.
+This module is deprecated.
+Please use :mod:`airflow.providers.google.cloud.log.stackdriver_task_handler`.
 """
 import warnings
 
@@ -24,5 +25,6 @@ from airflow.providers.google.cloud.log.stackdriver_task_handler import Stackdri
 
 warnings.warn(
     "This module is deprecated. Please use `airflow.providers.google.cloud.log.stackdriver_task_handler`.",
-    DeprecationWarning, stacklevel=2
+    DeprecationWarning,
+    stacklevel=2,
 )

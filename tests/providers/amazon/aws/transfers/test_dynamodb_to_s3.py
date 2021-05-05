@@ -24,7 +24,6 @@ from airflow.providers.amazon.aws.transfers.dynamodb_to_s3 import DynamoDBToS3Op
 
 
 class DynamodbToS3Test(unittest.TestCase):
-
     def setUp(self):
         self.output_queue = []
 
@@ -63,4 +62,4 @@ class DynamodbToS3Test(unittest.TestCase):
 
         dynamodb_to_s3_operator.execute(context={})
 
-        self.assertEqual([{'a': 1}, {'b': 2}, {'c': 3}], self.output_queue)
+        assert [{'a': 1}, {'b': 2}, {'c': 3}] == self.output_queue

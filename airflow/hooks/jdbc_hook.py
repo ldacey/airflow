@@ -15,7 +15,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""This module is deprecated. Please use `airflow.providers.jdbc.hooks.jdbc`."""
+"""This module is deprecated. Please use :mod:`airflow.providers.jdbc.hooks.jdbc`."""
 
 import warnings
 
@@ -24,5 +24,6 @@ from airflow.providers.jdbc.hooks.jdbc import JdbcHook, jaydebeapi  # noqa
 
 warnings.warn(
     "This module is deprecated. Please use `airflow.providers.jdbc.hooks.jdbc`.",
-    DeprecationWarning, stacklevel=2
+    DeprecationWarning,
+    stacklevel=2,
 )

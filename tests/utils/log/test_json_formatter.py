@@ -20,6 +20,7 @@
 Module for all tests airflow.utils.log.json_formatter.JSONFormatter
 """
 import json
+import sys
 import unittest
 from logging import makeLogRecord
 
@@ -30,12 +31,22 @@ class TestJSONFormatter(unittest.TestCase):
     """
     TestJSONFormatter class combine all tests for JSONFormatter
     """
+
     def test_json_formatter_is_not_none(self):
         """
         JSONFormatter instance  should return not none
         """
         json_fmt = JSONFormatter()
-        self.assertIsNotNone(json_fmt)
+        assert json_fmt is not None
+
+    def test_uses_time(self):
+        """
+        Test usesTime method from JSONFormatter
+        """
+        json_fmt_asctime = JSONFormatter(json_fields=["asctime", "label"])
+        json_fmt_no_asctime = JSONFormatter(json_fields=["label"])
+        assert json_fmt_asctime.usesTime()
+        assert not json_fmt_no_asctime.usesTime()
 
     def test_format(self):
         """
@@ -43,7 +54,7 @@ class TestJSONFormatter(unittest.TestCase):
         """
         log_record = makeLogRecord({"label": "value"})
         json_fmt = JSONFormatter(json_fields=["label"])
-        self.assertEqual(json_fmt.format(log_record), '{"label": "value"}')
+        assert json_fmt.format(log_record) == '{"label": "value"}'
 
     def test_format_with_extras(self):
         """
@@ -52,5 +63,21 @@ class TestJSONFormatter(unittest.TestCase):
         log_record = makeLogRecord({"label": "value"})
         json_fmt = JSONFormatter(json_fields=["label"], extras={'pod_extra': 'useful_message'})
         # compare as a dicts to not fail on sorting errors
-        self.assertDictEqual(json.loads(json_fmt.format(log_record)),
-                             {"label": "value", "pod_extra": "useful_message"})
+        assert json.loads(json_fmt.format(log_record)) == {"label": "value", "pod_extra": "useful_message"}
+
+    def test_format_with_exception(self):
+        """
+        Test exception is included in the message when using JSONFormatter
+        """
+        try:
+            raise RuntimeError("message")
+        except RuntimeError:
+            exc_info = sys.exc_info()
+
+        log_record = makeLogRecord({"exc_info": exc_info, "message": "Some msg"})
+        json_fmt = JSONFormatter(json_fields=["message"])
+
+        log_fmt = json.loads(json_fmt.format(log_record))
+        assert "message" in log_fmt
+        assert "Traceback (most recent call last)" in log_fmt["message"]
+        assert 'raise RuntimeError("message")' in log_fmt["message"]

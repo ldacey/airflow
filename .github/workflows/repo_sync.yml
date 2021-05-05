@@ -17,14 +17,16 @@
 #
 ---
 name: Force sync master from apache/airflow
-on:
+on:  # yamllint disable-line rule:truthy
   workflow_dispatch:
 jobs:
   repo-sync:
     if: github.repository != 'apache/airflow'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-20.04
     steps:
-      - uses: actions/checkout@master
+      - uses: actions/checkout@v2
+        with:
+          persist-credentials: false
       - name: repo-sync
         uses: repo-sync/github-sync@v2
         with:

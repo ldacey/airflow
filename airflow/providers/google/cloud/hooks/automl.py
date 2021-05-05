@@ -16,18 +16,30 @@
 # specific language governing permissions and limitations
 # under the License.
 #
-"""
-This module contains a Google AutoML hook.
-"""
+"""This module contains a Google AutoML hook."""
 from typing import Dict, List, Optional, Sequence, Tuple, Union
 
-from cached_property import cached_property
+try:
+    from functools import cached_property
+except ImportError:
+    from cached_property import cached_property
+from google.api_core.operation import Operation
 from google.api_core.retry import Retry
-from google.cloud.automl_v1beta1 import AutoMlClient, PredictionServiceClient
-from google.cloud.automl_v1beta1.types import (
-    BatchPredictInputConfig, BatchPredictOutputConfig, ColumnSpec, Dataset, ExamplePayload, FieldMask,
-    ImageObjectDetectionModelDeploymentMetadata, InputConfig, Model, Operation, PredictResponse, TableSpec,
+from google.cloud.automl_v1beta1 import (
+    AutoMlClient,
+    BatchPredictInputConfig,
+    BatchPredictOutputConfig,
+    ColumnSpec,
+    Dataset,
+    ExamplePayload,
+    ImageObjectDetectionModelDeploymentMetadata,
+    InputConfig,
+    Model,
+    PredictionServiceClient,
+    PredictResponse,
+    TableSpec,
 )
+from google.protobuf.field_mask_pb2 import FieldMask
 
 from airflow.providers.google.common.hooks.base_google import GoogleBaseHook
 
@@ -55,9 +67,7 @@ class CloudAutoMLHook(GoogleBaseHook):
 
     @staticmethod
     def extract_object_id(obj: Dict) -> str:
-        """
-        Returns unique id of the object.
-        """
+        """Returns unique id of the object."""
         return obj["name"].rpartition("/")[-1]
 
     def get_conn(self) -> AutoMlClient:
@@ -68,9 +78,7 @@ class CloudAutoMLHook(GoogleBaseHook):
         :rtype: google.cloud.automl_v1beta1.AutoMlClient
         """
         if self._client is None:
-            self._client = AutoMlClient(
-                credentials=self._get_credentials(), client_info=self.client_info
-            )
+            self._client = AutoMlClient(credentials=self._get_credentials(), client_info=self.client_info)
         return self._client
 
     @cached_property
@@ -81,9 +89,7 @@ class CloudAutoMLHook(GoogleBaseHook):
         :return: Google Cloud AutoML PredictionServiceClient client object.
         :rtype: google.cloud.automl_v1beta1.PredictionServiceClient
         """
-        return PredictionServiceClient(
-            credentials=self._get_credentials(), client_info=self.client_info
-        )
+        return PredictionServiceClient(credentials=self._get_credentials(), client_info=self.client_info)
 
     @GoogleBaseHook.fallback_to_default_project_id
     def create_model(
@@ -121,9 +127,9 @@ class CloudAutoMLHook(GoogleBaseHook):
         :return: `google.cloud.automl_v1beta1.types._OperationFuture` instance
         """
         client = self.get_conn()
-        parent = client.location_path(project_id, location)
+        parent = f"projects/{project_id}/locations/{location}"
         return client.create_model(
-            parent=parent, model=model, retry=retry, timeout=timeout, metadata=metadata
+            request={'parent': parent, 'model': model}, retry=retry, timeout=timeout, metadata=metadata or ()
         )
 
     @GoogleBaseHook.fallback_to_default_project_id
@@ -174,15 +180,17 @@ class CloudAutoMLHook(GoogleBaseHook):
         :return: `google.cloud.automl_v1beta1.types._OperationFuture` instance
         """
         client = self.prediction_client
-        name = client.model_path(project=project_id, location=location, model=model_id)
+        name = f"projects/{project_id}/locations/{location}/models/{model_id}"
         result = client.batch_predict(
-            name=name,
-            input_config=input_config,
-            output_config=output_config,
-            params=params,
+            request={
+                'name': name,
+                'input_config': input_config,
+                'output_config': output_config,
+                'params': params,
+            },
             retry=retry,
             timeout=timeout,
-            metadata=metadata,
+            metadata=metadata or (),
         )
         return result
 
@@ -227,14 +235,12 @@ class CloudAutoMLHook(GoogleBaseHook):
         :return: `google.cloud.automl_v1beta1.types.PredictResponse` instance
         """
         client = self.prediction_client
-        name = client.model_path(project=project_id, location=location, model=model_id)
+        name = f"projects/{project_id}/locations/{location}/models/{model_id}"
         result = client.predict(
-            name=name,
-            payload=payload,
-            params=params,
+            request={'name': name, 'payload': payload, 'params': params},
             retry=retry,
             timeout=timeout,
-            metadata=metadata,
+            metadata=metadata or (),
         )
         return result
 
@@ -271,13 +277,12 @@ class CloudAutoMLHook(GoogleBaseHook):
         :return: `google.cloud.automl_v1beta1.types.Dataset` instance.
         """
         client = self.get_conn()
-        parent = client.location_path(project=project_id, location=location)
+        parent = f"projects/{project_id}/locations/{location}"
         result = client.create_dataset(
-            parent=parent,
-            dataset=dataset,
+            request={'parent': parent, 'dataset': dataset},
             retry=retry,
             timeout=timeout,
-            metadata=metadata,
+            metadata=metadata or (),
         )
         return result
 
@@ -317,15 +322,12 @@ class CloudAutoMLHook(GoogleBaseHook):
         :return: `google.cloud.automl_v1beta1.types._OperationFuture` instance
         """
         client = self.get_conn()
-        name = client.dataset_path(
-            project=project_id, location=location, dataset=dataset_id
-        )
+        name = f"projects/{project_id}/locations/{location}/datasets/{dataset_id}"
         result = client.import_data(
-            name=name,
-            input_config=input_config,
+            request={'name': name, 'input_config': input_config},
             retry=retry,
             timeout=timeout,
-            metadata=metadata,
+            metadata=metadata or (),
         )
         return result
 
@@ -385,13 +387,10 @@ class CloudAutoMLHook(GoogleBaseHook):
             table_spec=table_spec_id,
         )
         result = client.list_column_specs(
-            parent=parent,
-            field_mask=field_mask,
-            filter_=filter_,
-            page_size=page_size,
+            request={'parent': parent, 'field_mask': field_mask, 'filter': filter_, 'page_size': page_size},
             retry=retry,
             timeout=timeout,
-            metadata=metadata,
+            metadata=metadata or (),
         )
         return result
 
@@ -427,9 +426,9 @@ class CloudAutoMLHook(GoogleBaseHook):
         :return: `google.cloud.automl_v1beta1.types.Model` instance.
         """
         client = self.get_conn()
-        name = client.model_path(project=project_id, location=location, model=model_id)
+        name = f"projects/{project_id}/locations/{location}/models/{model_id}"
         result = client.get_model(
-            name=name, retry=retry, timeout=timeout, metadata=metadata
+            request={'name': name}, retry=retry, timeout=timeout, metadata=metadata or ()
         )
         return result
 
@@ -465,9 +464,9 @@ class CloudAutoMLHook(GoogleBaseHook):
         :return: `google.cloud.automl_v1beta1.types._OperationFuture` instance.
         """
         client = self.get_conn()
-        name = client.model_path(project=project_id, location=location, model=model_id)
+        name = f"projects/{project_id}/locations/{location}/models/{model_id}"
         result = client.delete_model(
-            name=name, retry=retry, timeout=timeout, metadata=metadata
+            request={'name': name}, retry=retry, timeout=timeout, metadata=metadata or ()
         )
         return result
 
@@ -482,7 +481,7 @@ class CloudAutoMLHook(GoogleBaseHook):
         """
         Updates a dataset.
 
-        :param dataset: TThe dataset which replaces the resource on the server.
+        :param dataset: The dataset which replaces the resource on the server.
             If a dict is provided, it must be of the same form as the protobuf message Dataset.
         :type dataset: Union[dict, Dataset]
         :param update_mask: The update mask applies to the resource.  If a dict is provided, it must
@@ -501,11 +500,10 @@ class CloudAutoMLHook(GoogleBaseHook):
         """
         client = self.get_conn()
         result = client.update_dataset(
-            dataset=dataset,
-            update_mask=update_mask,
+            request={'dataset': dataset, 'update_mask': update_mask},
             retry=retry,
             timeout=timeout,
-            metadata=metadata,
+            metadata=metadata or (),
         )
         return result
 
@@ -515,9 +513,7 @@ class CloudAutoMLHook(GoogleBaseHook):
         model_id: str,
         location: str,
         project_id: str,
-        image_detection_metadata: Union[
-            ImageObjectDetectionModelDeploymentMetadata, dict
-        ] = None,
+        image_detection_metadata: Union[ImageObjectDetectionModelDeploymentMetadata, dict] = None,
         retry: Optional[Retry] = None,
         timeout: Optional[float] = None,
         metadata: Optional[Sequence[Tuple[str, str]]] = None,
@@ -553,13 +549,15 @@ class CloudAutoMLHook(GoogleBaseHook):
         :return: `google.cloud.automl_v1beta1.types._OperationFuture` instance.
         """
         client = self.get_conn()
-        name = client.model_path(project=project_id, location=location, model=model_id)
+        name = f"projects/{project_id}/locations/{location}/models/{model_id}"
         result = client.deploy_model(
-            name=name,
+            request={
+                'name': name,
+                'image_object_detection_model_deployment_metadata': image_detection_metadata,
+            },
             retry=retry,
             timeout=timeout,
-            metadata=metadata,
-            image_object_detection_model_deployment_metadata=image_detection_metadata,
+            metadata=metadata or (),
         )
         return result
 
@@ -607,16 +605,12 @@ class CloudAutoMLHook(GoogleBaseHook):
             of the response through the `options` parameter.
         """
         client = self.get_conn()
-        parent = client.dataset_path(
-            project=project_id, location=location, dataset=dataset_id
-        )
+        parent = f"projects/{project_id}/locations/{location}/datasets/{dataset_id}"
         result = client.list_table_specs(
-            parent=parent,
-            filter_=filter_,
-            page_size=page_size,
+            request={'parent': parent, 'filter': filter_, 'page_size': page_size},
             retry=retry,
             timeout=timeout,
-            metadata=metadata,
+            metadata=metadata or (),
         )
         return result
 
@@ -652,9 +646,9 @@ class CloudAutoMLHook(GoogleBaseHook):
             of the response through the `options` parameter.
         """
         client = self.get_conn()
-        parent = client.location_path(project=project_id, location=location)
+        parent = f"projects/{project_id}/locations/{location}"
         result = client.list_datasets(
-            parent=parent, retry=retry, timeout=timeout, metadata=metadata
+            request={'parent': parent}, retry=retry, timeout=timeout, metadata=metadata or ()
         )
         return result
 
@@ -690,10 +684,8 @@ class CloudAutoMLHook(GoogleBaseHook):
         :return: `google.cloud.automl_v1beta1.types._OperationFuture` instance
         """
         client = self.get_conn()
-        name = client.dataset_path(
-            project=project_id, location=location, dataset=dataset_id
-        )
+        name = f"projects/{project_id}/locations/{location}/datasets/{dataset_id}"
         result = client.delete_dataset(
-            name=name, retry=retry, timeout=timeout, metadata=metadata
+            request={'name': name}, retry=retry, timeout=timeout, metadata=metadata or ()
         )
         return result

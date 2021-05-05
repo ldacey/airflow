@@ -17,8 +17,8 @@
 # under the License.
 #
 import unittest
+from unittest import mock
 
-import mock
 from google.cloud.videointelligence_v1 import enums
 
 from airflow.providers.google.cloud.hooks.video_intelligence import CloudVideoIntelligenceHook
@@ -42,7 +42,7 @@ class TestCloudVideoIntelligenceHook(unittest.TestCase):
 
     @mock.patch(
         "airflow.providers.google.cloud.hooks.video_intelligence.CloudVideoIntelligenceHook.client_info",
-        new_callable=mock.PropertyMock
+        new_callable=mock.PropertyMock,
     )
     @mock.patch(
         "airflow.providers.google.cloud.hooks.video_intelligence.CloudVideoIntelligenceHook._get_credentials"
@@ -51,11 +51,10 @@ class TestCloudVideoIntelligenceHook(unittest.TestCase):
     def test_video_intelligence_service_client_creation(self, mock_client, mock_get_creds, mock_client_info):
         result = self.hook.get_conn()
         mock_client.assert_called_once_with(
-            credentials=mock_get_creds.return_value,
-            client_info=mock_client_info.return_value
+            credentials=mock_get_creds.return_value, client_info=mock_client_info.return_value
         )
-        self.assertEqual(mock_client.return_value, result)
-        self.assertEqual(self.hook._conn, result)
+        assert mock_client.return_value == result
+        assert self.hook._conn == result
 
     @mock.patch("airflow.providers.google.cloud.hooks.video_intelligence.CloudVideoIntelligenceHook.get_conn")
     def test_annotate_video(self, get_conn):
@@ -67,7 +66,7 @@ class TestCloudVideoIntelligenceHook(unittest.TestCase):
         result = self.hook.annotate_video(input_uri=INPUT_URI, features=FEATURES)
 
         # Then
-        self.assertIs(result, ANNOTATE_VIDEO_RESPONSE)
+        assert result is ANNOTATE_VIDEO_RESPONSE
         annotate_video_method.assert_called_once_with(
             input_uri=INPUT_URI,
             input_content=None,
@@ -90,7 +89,7 @@ class TestCloudVideoIntelligenceHook(unittest.TestCase):
         result = self.hook.annotate_video(input_uri=INPUT_URI, output_uri=OUTPUT_URI, features=FEATURES)
 
         # Then
-        self.assertIs(result, ANNOTATE_VIDEO_RESPONSE)
+        assert result is ANNOTATE_VIDEO_RESPONSE
         annotate_video_method.assert_called_once_with(
             input_uri=INPUT_URI,
             output_uri=OUTPUT_URI,

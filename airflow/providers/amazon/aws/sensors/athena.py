@@ -17,11 +17,14 @@
 # under the License.
 from typing import Any, Optional
 
-from cached_property import cached_property
+try:
+    from functools import cached_property
+except ImportError:
+    from cached_property import cached_property
 
 from airflow.exceptions import AirflowException
 from airflow.providers.amazon.aws.hooks.athena import AWSAthenaHook
-from airflow.sensors.base_sensor_operator import BaseSensorOperator
+from airflow.sensors.base import BaseSensorOperator
 from airflow.utils.decorators import apply_defaults
 
 
@@ -42,8 +45,14 @@ class AthenaSensor(BaseSensorOperator):
     :type sleep_time: int
     """
 
-    INTERMEDIATE_STATES = ('QUEUED', 'RUNNING',)
-    FAILURE_STATES = ('FAILED', 'CANCELLED',)
+    INTERMEDIATE_STATES = (
+        'QUEUED',
+        'RUNNING',
+    )
+    FAILURE_STATES = (
+        'FAILED',
+        'CANCELLED',
+    )
     SUCCESS_STATES = ('SUCCEEDED',)
 
     template_fields = ['query_execution_id']
@@ -51,12 +60,15 @@ class AthenaSensor(BaseSensorOperator):
     ui_color = '#66c3ff'
 
     @apply_defaults
-    def __init__(self, *,
-                 query_execution_id: str,
-                 max_retries: Optional[int] = None,
-                 aws_conn_id: str = 'aws_default',
-                 sleep_time: int = 10,
-                 **kwargs: Any) -> None:
+    def __init__(
+        self,
+        *,
+        query_execution_id: str,
+        max_retries: Optional[int] = None,
+        aws_conn_id: str = 'aws_default',
+        sleep_time: int = 10,
+        **kwargs: Any,
+    ) -> None:
         super().__init__(**kwargs)
         self.aws_conn_id = aws_conn_id
         self.query_execution_id = query_execution_id
@@ -76,4 +88,4 @@ class AthenaSensor(BaseSensorOperator):
     @cached_property
     def hook(self) -> AWSAthenaHook:
         """Create and return an AWSAthenaHook"""
-        return AWSAthenaHook(self.aws_conn_id, self.sleep_time)
+        return AWSAthenaHook(self.aws_conn_id, sleep_time=self.sleep_time)

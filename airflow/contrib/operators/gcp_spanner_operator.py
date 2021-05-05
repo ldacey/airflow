@@ -15,14 +15,17 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""This module is deprecated. Please use `airflow.providers.google.cloud.operators.spanner`."""
+"""This module is deprecated. Please use :mod:`airflow.providers.google.cloud.operators.spanner`."""
 
 import warnings
 
 from airflow.providers.google.cloud.operators.spanner import (
-    SpannerDeleteDatabaseInstanceOperator, SpannerDeleteInstanceOperator,
-    SpannerDeployDatabaseInstanceOperator, SpannerDeployInstanceOperator,
-    SpannerQueryDatabaseInstanceOperator, SpannerUpdateDatabaseInstanceOperator,
+    SpannerDeleteDatabaseInstanceOperator,
+    SpannerDeleteInstanceOperator,
+    SpannerDeployDatabaseInstanceOperator,
+    SpannerDeployInstanceOperator,
+    SpannerQueryDatabaseInstanceOperator,
+    SpannerUpdateDatabaseInstanceOperator,
 )
 
 warnings.warn(
@@ -40,7 +43,9 @@ class CloudSpannerInstanceDatabaseDeleteOperator(SpannerDeleteDatabaseInstanceOp
 
     def __init__(self, *args, **kwargs):
         warnings.warn(
-            self.__doc__, DeprecationWarning, stacklevel=3,
+            self.__doc__,
+            DeprecationWarning,
+            stacklevel=3,
         )
         super().__init__(*args, **kwargs)
 
@@ -53,7 +58,9 @@ class CloudSpannerInstanceDatabaseDeployOperator(SpannerDeployDatabaseInstanceOp
 
     def __init__(self, *args, **kwargs):
         warnings.warn(
-            self.__doc__, DeprecationWarning, stacklevel=3,
+            self.__doc__,
+            DeprecationWarning,
+            stacklevel=3,
         )
         super().__init__(*args, **kwargs)
 
@@ -66,7 +73,9 @@ class CloudSpannerInstanceDatabaseQueryOperator(SpannerQueryDatabaseInstanceOper
 
     def __init__(self, *args, **kwargs):
         warnings.warn(
-            self.__doc__, DeprecationWarning, stacklevel=3,
+            self.__doc__,
+            DeprecationWarning,
+            stacklevel=3,
         )
         super().__init__(*args, **kwargs)
 
@@ -79,7 +88,9 @@ class CloudSpannerInstanceDatabaseUpdateOperator(SpannerUpdateDatabaseInstanceOp
 
     def __init__(self, *args, **kwargs):
         warnings.warn(
-            self.__doc__, DeprecationWarning, stacklevel=3,
+            self.__doc__,
+            DeprecationWarning,
+            stacklevel=3,
         )
         super().__init__(*args, **kwargs)
 
@@ -92,7 +103,9 @@ class CloudSpannerInstanceDeleteOperator(SpannerDeleteInstanceOperator):
 
     def __init__(self, *args, **kwargs):
         warnings.warn(
-            self.__doc__, DeprecationWarning, stacklevel=3,
+            self.__doc__,
+            DeprecationWarning,
+            stacklevel=3,
         )
         super().__init__(*args, **kwargs)
 
@@ -105,6 +118,8 @@ class CloudSpannerInstanceDeployOperator(SpannerDeployInstanceOperator):
 
     def __init__(self, *args, **kwargs):
         warnings.warn(
-            self.__doc__, DeprecationWarning, stacklevel=3,
+            self.__doc__,
+            DeprecationWarning,
+            stacklevel=3,
         )
         super().__init__(*args, **kwargs)

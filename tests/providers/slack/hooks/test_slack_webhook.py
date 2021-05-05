@@ -40,7 +40,7 @@ class TestSlackWebhookHook(unittest.TestCase):
         'icon_emoji': ':hankey:',
         'icon_url': 'https://airflow.apache.org/_images/pin_large.png',
         'link_names': True,
-        'proxy': 'https://my-horrible-proxy.proxyist.com:8080'
+        'proxy': 'https://my-horrible-proxy.proxyist.com:8080',
     }
     expected_message_dict = {
         'channel': _config['channel'],
@@ -50,7 +50,7 @@ class TestSlackWebhookHook(unittest.TestCase):
         'link_names': 1,
         'attachments': _config['attachments'],
         'blocks': _config['blocks'],
-        'text': _config['message']
+        'text': _config['message'],
     }
     expected_message = json.dumps(expected_message_dict)
     expected_url = 'https://hooks.slack.com/services/T000/B000/XXX'
@@ -61,19 +61,27 @@ class TestSlackWebhookHook(unittest.TestCase):
             Connection(
                 conn_id='slack-webhook-default',
                 conn_type='http',
-                extra='{"webhook_token": "your_token_here"}')
+                extra='{"webhook_token": "your_token_here"}',
+            )
         )
         db.merge_conn(
             Connection(
                 conn_id='slack-webhook-url',
                 conn_type='http',
-                host='https://hooks.slack.com/services/T000/B000/XXX')
+                host='https://hooks.slack.com/services/T000/B000/XXX',
+            )
         )
         db.merge_conn(
             Connection(
-                conn_id='slack-webhook-host',
+                conn_id='slack-webhook-host', conn_type='http', host='https://hooks.slack.com/services/T000/'
+            )
+        )
+        db.merge_conn(
+            Connection(
+                conn_id='slack-webhook-with-password',
                 conn_type='http',
-                host='https://hooks.slack.com/services/T000/')
+                password='your_token_here',
+            )
         )
 
     def test_get_token_manual_token(self):
@@ -85,7 +93,7 @@ class TestSlackWebhookHook(unittest.TestCase):
         webhook_token = hook._get_token(manual_token, None)
 
         # Then
-        self.assertEqual(webhook_token, manual_token)
+        assert webhook_token == manual_token
 
     def test_get_token_conn_id(self):
         # Given
@@ -97,7 +105,19 @@ class TestSlackWebhookHook(unittest.TestCase):
         webhook_token = hook._get_token(None, conn_id)
 
         # Then
-        self.assertEqual(webhook_token, expected_webhook_token)
+        assert webhook_token == expected_webhook_token
+
+    def test_get_token_conn_id_password(self):
+        # Given
+        conn_id = 'slack-webhook-with-password'
+        hook = SlackWebhookHook(http_conn_id=conn_id)
+        expected_webhook_token = 'your_token_here'
+
+        # When
+        webhook_token = hook._get_token(None, conn_id)
+
+        # Then
+        assert webhook_token == expected_webhook_token
 
     def test_build_slack_message(self):
         # Given
@@ -107,7 +127,7 @@ class TestSlackWebhookHook(unittest.TestCase):
         message = hook._build_slack_message()
 
         # Then
-        self.assertEqual(self.expected_message_dict, json.loads(message))
+        assert self.expected_message_dict == json.loads(message)
 
     @mock.patch('requests.Session')
     @mock.patch('requests.Request')
@@ -118,10 +138,7 @@ class TestSlackWebhookHook(unittest.TestCase):
         except MissingSchema:
             pass
         mock_request.assert_called_once_with(
-            self.expected_method,
-            self.expected_url,
-            headers=mock.ANY,
-            data=mock.ANY
+            self.expected_method, self.expected_url, headers=mock.ANY, data=mock.ANY
         )
         mock_request.reset_mock()
 
@@ -134,26 +151,19 @@ class TestSlackWebhookHook(unittest.TestCase):
         except MissingSchema:
             pass
         mock_request.assert_called_once_with(
-            self.expected_method,
-            self.expected_url,
-            headers=mock.ANY,
-            data=mock.ANY
+            self.expected_method, self.expected_url, headers=mock.ANY, data=mock.ANY
         )
         mock_request.reset_mock()
 
     @mock.patch('requests.Session')
     @mock.patch('requests.Request')
     def test_url_generated_by_http_conn_id_and_endpoint(self, mock_request, mock_session):
-        hook = SlackWebhookHook(http_conn_id='slack-webhook-host',
-                                webhook_token='B000/XXX')
+        hook = SlackWebhookHook(http_conn_id='slack-webhook-host', webhook_token='B000/XXX')
         try:
             hook.execute()
         except MissingSchema:
             pass
         mock_request.assert_called_once_with(
-            self.expected_method,
-            self.expected_url,
-            headers=mock.ANY,
-            data=mock.ANY
+            self.expected_method, self.expected_url, headers=mock.ANY, data=mock.ANY
         )
         mock_request.reset_mock()

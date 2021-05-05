@@ -1,0 +1,174 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+
+import base64
+import unittest
+
+import jmespath
+
+from tests.helm_template_generator import render_chart
+
+
+class PgbouncerTest(unittest.TestCase):
+    def test_should_create_pgbouncer(self):
+        docs = render_chart(
+            values={"pgbouncer": {"enabled": True}},
+            show_only=["templates/pgbouncer/pgbouncer-deployment.yaml"],
+        )
+
+        assert "RELEASE-NAME-pgbouncer" == jmespath.search("metadata.name", docs[0])
+
+        assert "pgbouncer" == jmespath.search("spec.template.spec.containers[0].name", docs[0])
+
+    def test_should_create_valid_affinity_tolerations_and_node_selector(self):
+        docs = render_chart(
+            values={
+                "pgbouncer": {
+                    "enabled": True,
+                    "affinity": {
+                        "nodeAffinity": {
+                            "requiredDuringSchedulingIgnoredDuringExecution": {
+                                "nodeSelectorTerms": [
+                                    {
+                                        "matchExpressions": [
+                                            {"key": "foo", "operator": "In", "values": ["true"]},
+                                        ]
+                                    }
+                                ]
+                            }
+                        }
+                    },
+                    "tolerations": [
+                        {"key": "dynamic-pods", "operator": "Equal", "value": "true", "effect": "NoSchedule"}
+                    ],
+                    "nodeSelector": {"diskType": "ssd"},
+                }
+            },
+            show_only=["templates/pgbouncer/pgbouncer-deployment.yaml"],
+        )
+
+        assert "Deployment" == jmespath.search("kind", docs[0])
+        assert "foo" == jmespath.search(
+            "spec.template.spec.affinity.nodeAffinity."
+            "requiredDuringSchedulingIgnoredDuringExecution."
+            "nodeSelectorTerms[0]."
+            "matchExpressions[0]."
+            "key",
+            docs[0],
+        )
+        assert "ssd" == jmespath.search(
+            "spec.template.spec.nodeSelector.diskType",
+            docs[0],
+        )
+        assert "dynamic-pods" == jmespath.search(
+            "spec.template.spec.tolerations[0].key",
+            docs[0],
+        )
+
+    def test_no_existing_secret(self):
+        docs = render_chart(
+            "TEST-PGBOUNCER-CONFIG",
+            values={
+                "pgbouncer": {"enabled": True},
+            },
+            show_only=["templates/pgbouncer/pgbouncer-deployment.yaml"],
+        )
+
+        assert {
+            "name": "pgbouncer-config",
+            "secret": {"secretName": "TEST-PGBOUNCER-CONFIG-pgbouncer-config"},
+        } == jmespath.search("spec.template.spec.volumes[0]", docs[0])
+
+    def test_existing_secret(self):
+        docs = render_chart(
+            "TEST-PGBOUNCER-CONFIG",
+            values={
+                "pgbouncer": {"enabled": True, "configSecretName": "pgbouncer-config-secret"},
+            },
+            show_only=["templates/pgbouncer/pgbouncer-deployment.yaml"],
+        )
+
+        assert {
+            "name": "pgbouncer-config",
+            "secret": {"secretName": "pgbouncer-config-secret"},
+        } == jmespath.search("spec.template.spec.volumes[0]", docs[0])
+
+    def test_pgbouncer_resources_are_configurable(self):
+        docs = render_chart(
+            values={
+                "pgbouncer": {
+                    "enabled": True,
+                    "resources": {
+                        "limits": {"cpu": "200m", 'memory': "128Mi"},
+                        "requests": {"cpu": "300m", 'memory': "169Mi"},
+                    },
+                },
+            },
+            show_only=["templates/pgbouncer/pgbouncer-deployment.yaml"],
+        )
+        assert "128Mi" == jmespath.search("spec.template.spec.containers[0].resources.limits.memory", docs[0])
+        assert "169Mi" == jmespath.search(
+            "spec.template.spec.containers[0].resources.requests.memory", docs[0]
+        )
+        assert "300m" == jmespath.search("spec.template.spec.containers[0].resources.requests.cpu", docs[0])
+
+    def test_pgbouncer_resources_are_not_added_by_default(self):
+        docs = render_chart(
+            values={
+                "pgbouncer": {"enabled": True},
+            },
+            show_only=["templates/pgbouncer/pgbouncer-deployment.yaml"],
+        )
+        assert jmespath.search("spec.template.spec.containers[0].resources", docs[0]) == {}
+
+
+class PgbouncerConfigTest(unittest.TestCase):
+    def test_databases_default(self):
+        docs = render_chart(
+            values={"pgbouncer": {"enabled": True}},
+            show_only=["templates/secrets/pgbouncer-config-secret.yaml"],
+        )
+
+        encoded_ini = jmespath.search('data."pgbouncer.ini"', docs[0])
+        ini = base64.b64decode(encoded_ini).decode()
+
+        assert (
+            "RELEASE-NAME-metadata = host=RELEASE-NAME-postgresql.default dbname=postgres port=5432"
+            " pool_size=10" in ini
+        )
+        assert (
+            "RELEASE-NAME-result-backend = host=RELEASE-NAME-postgresql.default dbname=postgres port=5432"
+            " pool_size=5" in ini
+        )
+
+    def test_hostname_override(self):
+        docs = render_chart(
+            values={
+                "pgbouncer": {"enabled": True, "metadataPoolSize": 12, "resultBackendPoolSize": 7},
+                "data": {
+                    "metadataConnection": {"host": "meta_host", "db": "meta_db", "port": 1111},
+                    "resultBackendConnection": {"host": "rb_host", "db": "rb_db", "port": 2222},
+                },
+            },
+            show_only=["templates/secrets/pgbouncer-config-secret.yaml"],
+        )
+
+        encoded_ini = jmespath.search('data."pgbouncer.ini"', docs[0])
+        ini = base64.b64decode(encoded_ini).decode()
+
+        assert "RELEASE-NAME-metadata = host=meta_host dbname=meta_db port=1111 pool_size=12" in ini
+        assert "RELEASE-NAME-result-backend = host=rb_host dbname=rb_db port=2222 pool_size=7" in ini

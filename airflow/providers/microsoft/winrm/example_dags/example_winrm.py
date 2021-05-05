@@ -31,7 +31,7 @@ This is an example dag for using the WinRMOperator.
 from datetime import timedelta
 
 from airflow import DAG
-from airflow.operators.dummy_operator import DummyOperator
+from airflow.operators.dummy import DummyOperator
 from airflow.providers.microsoft.winrm.hooks.winrm import WinRMHook
 from airflow.providers.microsoft.winrm.operators.winrm import WinRMOperator
 from airflow.utils.dates import days_ago
@@ -54,22 +54,10 @@ with DAG(
 
     winRMHook = WinRMHook(ssh_conn_id='ssh_POC1')
 
-    t1 = WinRMOperator(
-        task_id="wintask1",
-        command='ls -altr',
-        winrm_hook=winRMHook
-    )
+    t1 = WinRMOperator(task_id="wintask1", command='ls -altr', winrm_hook=winRMHook)
 
-    t2 = WinRMOperator(
-        task_id="wintask2",
-        command='sleep 60',
-        winrm_hook=winRMHook
-    )
+    t2 = WinRMOperator(task_id="wintask2", command='sleep 60', winrm_hook=winRMHook)
 
-    t3 = WinRMOperator(
-        task_id="wintask3",
-        command='echo \'luke test\' ',
-        winrm_hook=winRMHook
-    )
+    t3 = WinRMOperator(task_id="wintask3", command='echo \'luke test\' ', winrm_hook=winRMHook)
 
     [t1, t2, t3] >> run_this_last

@@ -15,7 +15,10 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""This module is deprecated. Please use `airflow.providers.amazon.aws.sensors.glue_catalog_partition`."""
+"""
+This module is deprecated.
+Please use :mod:`airflow.providers.amazon.aws.sensors.glue_catalog_partition`.
+"""
 
 import warnings
 
@@ -24,5 +27,6 @@ from airflow.providers.amazon.aws.sensors.glue_catalog_partition import AwsGlueC
 
 warnings.warn(
     "This module is deprecated. Please use `airflow.providers.amazon.aws.sensors.glue_catalog_partition`.",
-    DeprecationWarning, stacklevel=2
+    DeprecationWarning,
+    stacklevel=2,
 )

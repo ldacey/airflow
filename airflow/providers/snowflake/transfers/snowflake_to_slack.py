@@ -36,13 +36,18 @@ class SnowflakeToSlackOperator(BaseOperator):
     allow the dataframe to be rendered nicely. For example, set 'slack_message' to {{ results_df |
     tabulate(tablefmt="pretty", headers="keys") }} to send the results to Slack as an ascii rendered table.
 
+    .. seealso::
+        For more information on how to use this operator, take a look at the guide:
+        :ref:`howto/operator:SnowflakeToSlackOperator`
+
     :param sql: The SQL statement to execute on Snowflake (templated)
     :type sql: str
     :param slack_message: The templated Slack message to send with the data returned from Snowflake.
         You can use the default JINJA variable {{ results_df }} to access the pandas dataframe containing the
         SQL results
     :type slack_message: str
-    :param snowflake_conn_id: The Snowflake connection id
+    :param snowflake_conn_id: Reference to
+        :ref:`Snowflake connection id<howto/connection:snowflake>`
     :type snowflake_conn_id: str
     :param slack_conn_id: The connection id for Slack
     :type slack_conn_id: str
@@ -62,8 +67,10 @@ class SnowflakeToSlackOperator(BaseOperator):
         'webhook_token' attribute needs to be specified in the 'Extra' JSON field against the slack_conn_id
     :type slack_token: Optional[str]
     """
+
     template_fields = ['sql', 'slack_message']
     template_ext = ['.sql', '.jinja', '.j2']
+    template_fields_renderers = {"slack_message": "jinja"}
     times_rendered = 0
 
     @apply_defaults
@@ -81,9 +88,9 @@ class SnowflakeToSlackOperator(BaseOperator):
         schema: Optional[str] = None,
         role: Optional[str] = None,
         slack_token: Optional[str] = None,
-        **kwargs
+        **kwargs,
     ) -> None:
-        super(SnowflakeToSlackOperator, self).__init__(**kwargs)
+        super().__init__(**kwargs)
 
         self.snowflake_conn_id = snowflake_conn_id
         self.sql = sql
@@ -114,13 +121,18 @@ class SnowflakeToSlackOperator(BaseOperator):
         slack_hook.execute()
 
     def _get_snowflake_hook(self) -> SnowflakeHook:
-        return SnowflakeHook(snowflake_conn_id=self.snowflake_conn_id,
-                             warehouse=self.warehouse, database=self.database,
-                             role=self.role, schema=self.schema)
+        return SnowflakeHook(
+            snowflake_conn_id=self.snowflake_conn_id,
+            warehouse=self.warehouse,
+            database=self.database,
+            role=self.role,
+            schema=self.schema,
+        )
 
     def _get_slack_hook(self) -> SlackWebhookHook:
-        return SlackWebhookHook(http_conn_id=self.slack_conn_id, message=self.slack_message,
-                                webhook_token=self.slack_token)
+        return SlackWebhookHook(
+            http_conn_id=self.slack_conn_id, message=self.slack_message, webhook_token=self.slack_token
+        )
 
     def render_template_fields(self, context, jinja_env=None) -> None:
         # If this is the first render of the template fields, exclude slack_message from rendering since

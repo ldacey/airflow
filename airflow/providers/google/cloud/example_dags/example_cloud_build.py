@@ -40,7 +40,7 @@ from airflow.utils import dates
 
 GCP_PROJECT_ID = os.environ.get("GCP_PROJECT_ID", "example-project")
 
-GCP_SOURCE_ARCHIVE_URL = os.environ.get("GCP_CLOUD_BUILD_ARCHIVE_URL", "gs://example-bucket/file")
+GCP_SOURCE_ARCHIVE_URL = os.environ.get("GCP_CLOUD_BUILD_ARCHIVE_URL", "gs://INVALID BUCKET NAME/file")
 GCP_SOURCE_REPOSITORY_NAME = os.environ.get("GCP_CLOUD_BUILD_REPOSITORY_NAME", "repository-name")
 
 GCP_SOURCE_ARCHIVE_URL_PARTS = urlparse(GCP_SOURCE_ARCHIVE_URL)
@@ -54,10 +54,10 @@ create_build_from_storage_body = {
     "steps": [
         {
             "name": "gcr.io/cloud-builders/docker",
-            "args": ["build", "-t", "gcr.io/$PROJECT_ID/{}".format(GCP_SOURCE_BUCKET_NAME), "."],
+            "args": ["build", "-t", f"gcr.io/$PROJECT_ID/{GCP_SOURCE_BUCKET_NAME}", "."],
         }
     ],
-    "images": ["gcr.io/$PROJECT_ID/{}".format(GCP_SOURCE_BUCKET_NAME)],
+    "images": [f"gcr.io/$PROJECT_ID/{GCP_SOURCE_BUCKET_NAME}"],
 }
 # [END howto_operator_gcp_create_build_from_storage_body]
 
@@ -104,9 +104,10 @@ with models.DAG(
 
     # [START howto_operator_gcp_create_build_from_yaml_body]
     create_build_from_file = CloudBuildCreateBuildOperator(
-        task_id="create_build_from_file", project_id=GCP_PROJECT_ID,
+        task_id="create_build_from_file",
+        project_id=GCP_PROJECT_ID,
         body=str(CURRENT_FOLDER.joinpath('example_cloud_build.yaml')),
-        params={'name': 'Airflow'}
+        params={'name': 'Airflow'},
     )
     # [END howto_operator_gcp_create_build_from_yaml_body]
     create_build_from_storage >> create_build_from_storage_result  # pylint: disable=pointless-statement

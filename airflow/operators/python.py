@@ -15,30 +15,66 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-import functools
 import inspect
 import os
 import pickle
-import re
 import sys
 import types
-from inspect import signature
-from itertools import islice
+import warnings
 from tempfile import TemporaryDirectory
 from textwrap import dedent
-from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple, TypeVar, Union, cast
+from typing import Any, Callable, Dict, Iterable, List, Optional, Union
 
 import dill
 
 from airflow.exceptions import AirflowException
 from airflow.models import BaseOperator
-from airflow.models.dag import DAG, DagContext
 from airflow.models.skipmixin import SkipMixin
 from airflow.models.taskinstance import _CURRENT_CONTEXT
-from airflow.models.xcom_arg import XComArg
 from airflow.utils.decorators import apply_defaults
+from airflow.utils.operator_helpers import determine_kwargs
 from airflow.utils.process_utils import execute_in_subprocess
 from airflow.utils.python_virtualenv import prepare_virtualenv, write_python_script
+
+
+def task(python_callable: Optional[Callable] = None, multiple_outputs: Optional[bool] = None, **kwargs):
+    """
+    Deprecated function that calls @task.python and allows users to turn a python function into
+    an Airflow task. Please use the following instead:
+
+    from airflow.decorators import task
+
+    @task
+    def my_task()
+
+    :param python_callable: A reference to an object that is callable
+    :type python_callable: python callable
+    :param op_kwargs: a dictionary of keyword arguments that will get unpacked
+        in your function (templated)
+    :type op_kwargs: dict
+    :param op_args: a list of positional arguments that will get unpacked when
+        calling your callable (templated)
+    :type op_args: list
+    :param multiple_outputs: if set, function return value will be
+        unrolled to multiple XCom values. Dict will unroll to xcom values with keys as keys.
+        Defaults to False.
+    :type multiple_outputs: bool
+    :return:
+    """
+    # To maintain backwards compatibility, we import the task object into this file
+    # This prevents breakages in dags that use `from airflow.operators.python import task`
+    from airflow.decorators.python import python_task  # noqa # pylint: disable=unused-import
+
+    warnings.warn(
+        """airflow.operators.python.task is deprecated. Please use the following instead
+
+        from airflow.decorators import task
+        @task
+        def my_task()""",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+    return python_task(python_callable=python_callable, multiple_outputs=multiple_outputs, **kwargs)
 
 
 class PythonOperator(BaseOperator):
@@ -66,12 +102,18 @@ class PythonOperator(BaseOperator):
         processing templated fields, for examples ``['.sql', '.hql']``
     :type templates_exts: list[str]
     """
+
     template_fields = ('templates_dict', 'op_args', 'op_kwargs')
-    ui_color = '#ffefeb'
+    template_fields_renderers = {"templates_dict": "json", "op_args": "py", "op_kwargs": "py"}
+    BLUE = '#ffefeb'
+    ui_color = BLUE
 
     # since we won't mutate the arguments, we should just do the shallow copy
     # there are some cases we can't deepcopy the objects(e.g protobuf).
-    shallow_copy_attrs = ('python_callable', 'op_kwargs',)
+    shallow_copy_attrs = (
+        'python_callable',
+        'op_kwargs',
+    )
 
     @apply_defaults
     def __init__(
@@ -82,8 +124,15 @@ class PythonOperator(BaseOperator):
         op_kwargs: Optional[Dict] = None,
         templates_dict: Optional[Dict] = None,
         templates_exts: Optional[List[str]] = None,
-        **kwargs
+        **kwargs,
     ) -> None:
+        if kwargs.get("provide_context"):
+            warnings.warn(
+                "provide_context is deprecated as of 2.0 and is no longer required",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            kwargs.pop('provide_context', None)
         super().__init__(**kwargs)
         if not callable(python_callable):
             raise AirflowException('`python_callable` param must be callable')
@@ -94,47 +143,11 @@ class PythonOperator(BaseOperator):
         if templates_exts:
             self.template_ext = templates_exts
 
-    @staticmethod
-    def determine_op_kwargs(python_callable: Callable,
-                            context: Dict,
-                            num_op_args: int = 0) -> Dict:
-        """
-        Function that will inspect the signature of a python_callable to determine which
-        values need to be passed to the function.
-
-        :param python_callable: The function that you want to invoke
-        :param context: The context provided by the execute method of the Operator/Sensor
-        :param num_op_args: The number of op_args provided, so we know how many to skip
-        :return: The op_args dictionary which contains the values that are compatible with the Callable
-        """
-        context_keys = context.keys()
-        sig = signature(python_callable).parameters.items()
-        op_args_names = islice(sig, num_op_args)
-        for name, _ in op_args_names:
-            # Check if it is part of the context
-            if name in context_keys:
-                # Raise an exception to let the user know that the keyword is reserved
-                raise ValueError(
-                    "The key {} in the op_args is part of the context, and therefore reserved".format(name)
-                )
-
-        if any(str(param).startswith("**") for _, param in sig):
-            # If there is a ** argument then just dump everything.
-            op_kwargs = context
-        else:
-            # If there is only for example, an execution_date, then pass only these in :-)
-            op_kwargs = {
-                name: context[name]
-                for name, _ in sig
-                if name in context  # If it isn't available on the context, then ignore
-            }
-        return op_kwargs
-
     def execute(self, context: Dict):
         context.update(self.op_kwargs)
         context['templates_dict'] = self.templates_dict
 
-        self.op_kwargs = PythonOperator.determine_op_kwargs(self.python_callable, context, len(self.op_args))
+        self.op_kwargs = determine_kwargs(self.python_callable, self.op_args, context)
 
         return_value = self.execute_callable()
         self.log.info("Done. Returned value was: %s", return_value)
@@ -148,153 +161,6 @@ class PythonOperator(BaseOperator):
         :rtype: any
         """
         return self.python_callable(*self.op_args, **self.op_kwargs)
-
-
-class _PythonFunctionalOperator(BaseOperator):
-    """
-    Wraps a Python callable and captures args/kwargs when called for execution.
-
-    :param python_callable: A reference to an object that is callable
-    :type python_callable: python callable
-    :param op_kwargs: a dictionary of keyword arguments that will get unpacked
-        in your function (templated)
-    :type op_kwargs: dict
-    :param op_args: a list of positional arguments that will get unpacked when
-        calling your callable (templated)
-    :type op_args: list
-    :param multiple_outputs: if set, function return value will be
-        unrolled to multiple XCom values. Dict will unroll to xcom values with keys as keys.
-        Defaults to False.
-    :type multiple_outputs: bool
-    """
-
-    template_fields = ('op_args', 'op_kwargs')
-    ui_color = PythonOperator.ui_color
-
-    # since we won't mutate the arguments, we should just do the shallow copy
-    # there are some cases we can't deepcopy the objects (e.g protobuf).
-    shallow_copy_attrs = ('python_callable',)
-
-    @apply_defaults
-    def __init__(
-        self,
-        *,
-        python_callable: Callable,
-        task_id: str,
-        op_args: Tuple[Any],
-        op_kwargs: Dict[str, Any],
-        multiple_outputs: bool = False,
-        **kwargs
-    ) -> None:
-        kwargs['task_id'] = self._get_unique_task_id(task_id, kwargs.get('dag', None))
-        super().__init__(**kwargs)
-        self.python_callable = python_callable
-
-        # Check that arguments can be binded
-        signature(python_callable).bind(*op_args, **op_kwargs)
-        self.multiple_outputs = multiple_outputs
-        self.op_args = op_args
-        self.op_kwargs = op_kwargs
-
-    @staticmethod
-    def _get_unique_task_id(task_id: str, dag: Optional[DAG] = None) -> str:
-        """
-        Generate unique task id given a DAG (or if run in a DAG context)
-        Ids are generated by appending a unique number to the end of
-        the original task id.
-
-        Example:
-          task_id
-          task_id__1
-          task_id__2
-          ...
-          task_id__20
-        """
-        dag = dag or DagContext.get_current_dag()
-        if not dag or task_id not in dag.task_ids:
-            return task_id
-        core = re.split(r'__\d+$', task_id)[0]
-        suffixes = sorted(
-            [int(re.split(r'^.+__', task_id)[1])
-             for task_id in dag.task_ids
-             if re.match(rf'^{core}__\d+$', task_id)]
-        )
-        if not suffixes:
-            return f'{core}__1'
-        return f'{core}__{suffixes[-1] + 1}'
-
-    @staticmethod
-    def validate_python_callable(python_callable):
-        """
-        Validate that python callable can be wrapped by operator.
-        Raises exception if invalid.
-
-        :param python_callable: Python object to be validated
-        :raises: TypeError, AirflowException
-        """
-        if not callable(python_callable):
-            raise TypeError('`python_callable` param must be callable')
-        if 'self' in signature(python_callable).parameters.keys():
-            raise AirflowException('@task does not support methods')
-
-    def execute(self, context: Dict):
-        return_value = self.python_callable(*self.op_args, **self.op_kwargs)
-        self.log.debug("Done. Returned value was: %s", return_value)
-        if not self.multiple_outputs:
-            return return_value
-        if isinstance(return_value, dict):
-            for key in return_value.keys():
-                if not isinstance(key, str):
-                    raise AirflowException('Returned dictionary keys must be strings when using '
-                                           f'multiple_outputs, found {key} ({type(key)}) instead')
-            for key, value in return_value.items():
-                self.xcom_push(context, key, value)
-        else:
-            raise AirflowException(f'Returned output was type {type(return_value)} expected dictionary '
-                                   'for multiple_outputs')
-        return return_value
-
-
-T = TypeVar("T", bound=Callable)  # pylint: disable=invalid-name
-
-
-def task(
-    python_callable: Optional[Callable] = None,
-    multiple_outputs: bool = False,
-    **kwargs
-) -> Callable[[T], T]:
-    """
-    Python operator decorator. Wraps a function into an Airflow operator.
-    Accepts kwargs for operator kwarg. Can be reused in a single DAG.
-
-    :param python_callable: Function to decorate
-    :type python_callable: Optional[Callable]
-    :param multiple_outputs: if set, function return value will be
-        unrolled to multiple XCom values. List/Tuples will unroll to xcom values
-        with index as key. Dict will unroll to xcom values with keys as XCom keys.
-        Defaults to False.
-    :type multiple_outputs: bool
-
-    """
-    def wrapper(f: T):
-        """
-        Python wrapper to generate PythonFunctionalOperator out of simple python functions.
-        Used for Airflow functional interface
-        """
-        _PythonFunctionalOperator.validate_python_callable(f)
-        kwargs.setdefault('task_id', f.__name__)
-
-        @functools.wraps(f)
-        def factory(*args, **f_kwargs):
-            op = _PythonFunctionalOperator(python_callable=f, op_args=args, op_kwargs=f_kwargs,
-                                           multiple_outputs=multiple_outputs, **kwargs)
-            return XComArg(op)
-        return cast(T, factory)
-    if callable(python_callable):
-        return wrapper(python_callable)
-    elif python_callable is not None:
-        raise AirflowException('No args allowed while using @task, use kwargs instead')
-    return wrapper
 
 
 class BranchPythonOperator(PythonOperator, SkipMixin):
@@ -361,7 +227,8 @@ class PythonVirtualenvOperator(PythonOperator):
     string_args). In addition, one can pass stuff through op_args and op_kwargs, and one
     can use a return value.
     Note that if your virtualenv runs in a different Python major version than Airflow,
-    you cannot use return values, op_args, or op_kwargs. You can use string_args though.
+    you cannot use return values, op_args, op_kwargs, or use any macros that are being provided to
+    Airflow through plugins. You can use string_args though.
 
     .. seealso::
         For more information on how to use this operator, take a look at the guide:
@@ -384,7 +251,7 @@ class PythonVirtualenvOperator(PythonOperator):
         See virtualenv documentation for more information.
     :type system_site_packages: bool
     :param op_args: A list of positional arguments to pass to python_callable.
-    :type op_kwargs: list
+    :type op_args: list
     :param op_kwargs: A dict of keyword arguments to pass to python_callable.
     :type op_kwargs: dict
     :param string_args: Strings that are present in the global var virtualenv_string_args,
@@ -419,22 +286,16 @@ class PythonVirtualenvOperator(PythonOperator):
         'ts_nodash',
         'ts_nodash_with_tz',
         'yesterday_ds',
-        'yesterday_ds_nodash'
+        'yesterday_ds_nodash',
     }
     PENDULUM_SERIALIZABLE_CONTEXT_KEYS = {
         'execution_date',
         'next_execution_date',
         'prev_execution_date',
         'prev_execution_date_success',
-        'prev_start_date_success'
+        'prev_start_date_success',
     }
-    AIRFLOW_SERIALIZABLE_CONTEXT_KEYS = {
-        'macros',
-        'conf',
-        'dag',
-        'dag_run',
-        'task'
-    }
+    AIRFLOW_SERIALIZABLE_CONTEXT_KEYS = {'macros', 'conf', 'dag', 'dag_run', 'task'}
 
     @apply_defaults
     def __init__(  # pylint: disable=too-many-arguments
@@ -450,26 +311,31 @@ class PythonVirtualenvOperator(PythonOperator):
         string_args: Optional[Iterable[str]] = None,
         templates_dict: Optional[Dict] = None,
         templates_exts: Optional[List[str]] = None,
-        **kwargs
+        **kwargs,
     ):
         if (
-            not isinstance(python_callable, types.FunctionType) or
-            isinstance(python_callable, types.LambdaType) and python_callable.__name__ == "<lambda>"
+            not isinstance(python_callable, types.FunctionType)
+            or isinstance(python_callable, types.LambdaType)
+            and python_callable.__name__ == "<lambda>"
         ):
             raise AirflowException('PythonVirtualenvOperator only supports functions for python_callable arg')
         if (
-            python_version and str(python_version)[0] != str(sys.version_info.major) and
-            (op_args or op_kwargs)
+            python_version
+            and str(python_version)[0] != str(sys.version_info.major)
+            and (op_args or op_kwargs)
         ):
-            raise AirflowException("Passing op_args or op_kwargs is not supported across different Python "
-                                   "major versions for PythonVirtualenvOperator. Please use string_args.")
+            raise AirflowException(
+                "Passing op_args or op_kwargs is not supported across different Python "
+                "major versions for PythonVirtualenvOperator. Please use string_args."
+            )
         super().__init__(
             python_callable=python_callable,
             op_args=op_args,
             op_kwargs=op_kwargs,
             templates_dict=templates_dict,
             templates_exts=templates_exts,
-            **kwargs)
+            **kwargs,
+        )
         self.requirements = list(requirements or [])
         self.string_args = string_args or []
         self.python_version = python_version
@@ -481,7 +347,7 @@ class PythonVirtualenvOperator(PythonOperator):
 
     def execute(self, context: Dict):
         serializable_context = {key: context[key] for key in self._get_serializable_context_keys()}
-        super().execute(context=serializable_context)
+        return super().execute(context=serializable_context)
 
     def execute_callable(self):
         with TemporaryDirectory(prefix='venv') as tmp_dir:
@@ -497,7 +363,7 @@ class PythonVirtualenvOperator(PythonOperator):
                 venv_directory=tmp_dir,
                 python_bin=f'python{self.python_version}' if self.python_version else None,
                 system_site_packages=self.system_site_packages,
-                requirements=self.requirements
+                requirements=self.requirements,
             )
 
             self._write_args(input_filename)
@@ -508,20 +374,29 @@ class PythonVirtualenvOperator(PythonOperator):
                     op_kwargs=self.op_kwargs,
                     pickling_library=self.pickling_library.__name__,
                     python_callable=self.python_callable.__name__,
-                    python_callable_source=dedent(inspect.getsource(self.python_callable))
+                    python_callable_source=self.get_python_source(),
                 ),
-                filename=script_filename
+                filename=script_filename,
             )
 
-            execute_in_subprocess(cmd=[
-                f'{tmp_dir}/bin/python',
-                script_filename,
-                input_filename,
-                output_filename,
-                string_args_filename
-            ])
+            execute_in_subprocess(
+                cmd=[
+                    f'{tmp_dir}/bin/python',
+                    script_filename,
+                    input_filename,
+                    output_filename,
+                    string_args_filename,
+                ]
+            )
 
             return self._read_result(output_filename)
+
+    def get_python_source(self):
+        """
+        Returns the source of self.python_callable
+        @return:
+        """
+        return dedent(inspect.getsource(self.python_callable))
 
     def _write_args(self, filename):
         if self.op_args or self.op_kwargs:
@@ -553,8 +428,10 @@ class PythonVirtualenvOperator(PythonOperator):
             try:
                 return self.pickling_library.load(file)
             except ValueError:
-                self.log.error("Error deserializing result. Note that result deserialization "
-                               "is not supported across major Python versions.")
+                self.log.error(
+                    "Error deserializing result. Note that result deserialization "
+                    "is not supported across major Python versions."
+                )
                 raise
 
 
@@ -563,11 +440,19 @@ def get_current_context() -> Dict[str, Any]:
     Obtain the execution context for the currently executing operator without
     altering user method's signature.
     This is the simplest method of retrieving the execution context dictionary.
-    ** Old style:
+
+    **Old style:**
+
+    .. code:: python
+
         def my_task(**context):
             ti = context["ti"]
-    ** New style:
-        from airflow.task.context import get_current_context
+
+    **New style:**
+
+    .. code:: python
+
+        from airflow.operators.python import get_current_context
         def my_task():
             context = get_current_context()
             ti = context["ti"]

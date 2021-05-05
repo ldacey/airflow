@@ -15,7 +15,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""This module is deprecated. Please use `airflow.providers.grpc.hooks.grpc`."""
+"""This module is deprecated. Please use :mod:`airflow.providers.grpc.hooks.grpc`."""
 
 import warnings
 
@@ -24,5 +24,6 @@ from airflow.providers.grpc.hooks.grpc import GrpcHook  # noqa
 
 warnings.warn(
     "This module is deprecated. Please use `airflow.providers.grpc.hooks.grpc`.",
-    DeprecationWarning, stacklevel=2
+    DeprecationWarning,
+    stacklevel=2,
 )

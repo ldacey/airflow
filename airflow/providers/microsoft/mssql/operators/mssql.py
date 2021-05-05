@@ -15,13 +15,15 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-from typing import Iterable, Mapping, Optional, Union
+from typing import TYPE_CHECKING, Iterable, Mapping, Optional, Union
 
 from airflow.exceptions import AirflowException
 from airflow.models import BaseOperator
 from airflow.providers.microsoft.mssql.hooks.mssql import MsSqlHook
-from airflow.providers.odbc.hooks.odbc import OdbcHook
 from airflow.utils.decorators import apply_defaults
+
+if TYPE_CHECKING:
+    from airflow.hooks.dbapi import DbApiHook
 
 
 class MsSqlOperator(BaseOperator):
@@ -53,13 +55,14 @@ class MsSqlOperator(BaseOperator):
 
     @apply_defaults
     def __init__(
-        self, *,
+        self,
+        *,
         sql: str,
         mssql_conn_id: str = 'mssql_default',
         parameters: Optional[Union[Mapping, Iterable]] = None,
         autocommit: bool = False,
         database: Optional[str] = None,
-        **kwargs
+        **kwargs,
     ) -> None:
         super().__init__(**kwargs)
         self.mssql_conn_id = mssql_conn_id
@@ -67,26 +70,27 @@ class MsSqlOperator(BaseOperator):
         self.parameters = parameters
         self.autocommit = autocommit
         self.database = database
-        self._hook = None
+        self._hook: Optional[Union[MsSqlHook, 'DbApiHook']] = None
 
-    def get_hook(self):
+    def get_hook(self) -> Optional[Union[MsSqlHook, 'DbApiHook']]:
         """
-        Will retrieve hook as determined by Connection.
+        Will retrieve hook as determined by :meth:`~.Connection.get_hook` if one is defined, and
+        :class:`~.MsSqlHook` otherwise.
 
-        If conn_type is ``'odbc'``, will use
-        :py:class:`~airflow.providers.odbc.hooks.odbc.OdbcHook`.
-        Otherwise, :py:class:`~airflow.providers.microsoft.mssql.hooks.mssql.MsSqlHook` will be used.
+        For example, if the connection ``conn_type`` is ``'odbc'``, :class:`~.OdbcHook` will be used.
         """
         if not self._hook:
             conn = MsSqlHook.get_connection(conn_id=self.mssql_conn_id)
             try:
-                self._hook: Union[MsSqlHook, OdbcHook] = conn.get_hook()
-                self._hook.schema = self.database
+                self._hook = conn.get_hook()
+                self._hook.schema = self.database  # type: ignore[union-attr]
             except AirflowException:
                 self._hook = MsSqlHook(mssql_conn_id=self.mssql_conn_id, schema=self.database)
         return self._hook
 
-    def execute(self, context):
+    def execute(self, context: dict) -> None:
         self.log.info('Executing: %s', self.sql)
         hook = self.get_hook()
-        hook.run(sql=self.sql, autocommit=self.autocommit, parameters=self.parameters)
+        hook.run(  # type: ignore[union-attr]
+            sql=self.sql, autocommit=self.autocommit, parameters=self.parameters
+        )

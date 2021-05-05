@@ -15,27 +15,22 @@
 # specific language governing permissions and limitations
 # under the License.
 
-import datetime
-
-import flask
-import flask_login
-from flask import session as flask_session
-
-from airflow.configuration import conf
+from flask import request, session as flask_session
+from flask.sessions import SecureCookieSessionInterface
 
 
-def init_logout_timeout(app):
-    """Add logout user after timeout"""
+class AirflowSessionInterface(SecureCookieSessionInterface):
+    """
+    Airflow cookie session interface.
+    Modifications of sessions should be done here because
+    the change here is global.
+    """
 
-    def before_request():
-        _force_log_out_after = conf.getint('webserver', 'FORCE_LOG_OUT_AFTER', fallback=0)
-        if _force_log_out_after > 0:
-            flask.session.permanent = True
-            app.permanent_session_lifetime = datetime.timedelta(minutes=_force_log_out_after)
-            flask.session.modified = True
-            flask.g.user = flask_login.current_user
-
-    app.before_request(before_request)
+    def save_session(self, *args, **kwargs):
+        """Prevent creating session from REST API requests."""
+        if request.blueprint == '/api/v1':
+            return None
+        return super().save_session(*args, **kwargs)
 
 
 def init_permanent_session(app):
@@ -45,3 +40,8 @@ def init_permanent_session(app):
         flask_session.permanent = True
 
     app.before_request(make_session_permanent)
+
+
+def init_airflow_session_interface(app):
+    """Set airflow session interface"""
+    app.session_interface = AirflowSessionInterface()

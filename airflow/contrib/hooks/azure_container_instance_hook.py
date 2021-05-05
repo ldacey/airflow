@@ -15,9 +15,9 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""This module is deprecated.
-
-Please use `airflow.providers.microsoft.azure.hooks.azure_container_instance`.
+"""
+This module is deprecated.
+Please use :mod:`airflow.providers.microsoft.azure.hooks.azure_container_instance`.
 """
 
 import warnings
@@ -30,5 +30,6 @@ from airflow.providers.microsoft.azure.hooks.azure_container_instance import (  
 warnings.warn(
     "This module is deprecated. "
     "Please use `airflow.providers.microsoft.azure.hooks.azure_container_instance`.",
-    DeprecationWarning, stacklevel=2
+    DeprecationWarning,
+    stacklevel=2,
 )

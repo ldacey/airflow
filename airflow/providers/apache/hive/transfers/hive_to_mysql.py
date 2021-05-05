@@ -16,9 +16,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-"""
-This module contains operator to move data from Hive to MySQL.
-"""
+"""This module contains operator to move data from Hive to MySQL."""
 from tempfile import NamedTemporaryFile
 from typing import Dict, Optional
 
@@ -67,16 +65,19 @@ class HiveToMySqlOperator(BaseOperator):
     ui_color = '#a0e08c'
 
     @apply_defaults
-    def __init__(self, *,
-                 sql: str,
-                 mysql_table: str,
-                 hiveserver2_conn_id: str = 'hiveserver2_default',
-                 mysql_conn_id: str = 'mysql_default',
-                 mysql_preoperator: Optional[str] = None,
-                 mysql_postoperator: Optional[str] = None,
-                 bulk_load: bool = False,
-                 hive_conf: Optional[Dict] = None,
-                 **kwargs) -> None:
+    def __init__(
+        self,
+        *,
+        sql: str,
+        mysql_table: str,
+        hiveserver2_conn_id: str = 'hiveserver2_default',
+        mysql_conn_id: str = 'mysql_default',
+        mysql_preoperator: Optional[str] = None,
+        mysql_postoperator: Optional[str] = None,
+        bulk_load: bool = False,
+        hive_conf: Optional[Dict] = None,
+        **kwargs,
+    ) -> None:
         super().__init__(**kwargs)
         self.sql = sql
         self.mysql_table = mysql_table
@@ -95,27 +96,20 @@ class HiveToMySqlOperator(BaseOperator):
         if self.hive_conf:
             hive_conf.update(self.hive_conf)
         if self.bulk_load:
-            tmp_file = NamedTemporaryFile()
-            hive.to_csv(self.sql,
-                        tmp_file.name,
-                        delimiter='\t',
-                        lineterminator='\n',
-                        output_header=False,
-                        hive_conf=hive_conf)
+            with NamedTemporaryFile() as tmp_file:
+                hive.to_csv(
+                    self.sql,
+                    tmp_file.name,
+                    delimiter='\t',
+                    lineterminator='\n',
+                    output_header=False,
+                    hive_conf=hive_conf,
+                )
+                mysql = self._call_preoperator()
+                mysql.bulk_load(table=self.mysql_table, tmp_file=tmp_file.name)
         else:
             hive_results = hive.get_records(self.sql, hive_conf=hive_conf)
-
-        mysql = MySqlHook(mysql_conn_id=self.mysql_conn_id)
-
-        if self.mysql_preoperator:
-            self.log.info("Running MySQL preoperator")
-            mysql.run(self.mysql_preoperator)
-
-        self.log.info("Inserting rows into MySQL")
-        if self.bulk_load:
-            mysql.bulk_load(table=self.mysql_table, tmp_file=tmp_file.name)
-            tmp_file.close()
-        else:
+            mysql = self._call_preoperator()
             mysql.insert_rows(table=self.mysql_table, rows=hive_results)
 
         if self.mysql_postoperator:
@@ -123,3 +117,11 @@ class HiveToMySqlOperator(BaseOperator):
             mysql.run(self.mysql_postoperator)
 
         self.log.info("Done.")
+
+    def _call_preoperator(self):
+        mysql = MySqlHook(mysql_conn_id=self.mysql_conn_id)
+        if self.mysql_preoperator:
+            self.log.info("Running MySQL preoperator")
+            mysql.run(self.mysql_preoperator)
+        self.log.info("Inserting rows into MySQL")
+        return mysql

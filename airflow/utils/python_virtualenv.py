@@ -16,10 +16,9 @@
 # specific language governing permissions and limitations
 # under the License.
 #
-"""
-Utilities for creating a virtual environment
-"""
+"""Utilities for creating a virtual environment"""
 import os
+from collections import deque
 from typing import List, Optional
 
 import jinja2
@@ -32,7 +31,7 @@ def _generate_virtualenv_cmd(tmp_dir: str, python_bin: str, system_site_packages
     if system_site_packages:
         cmd.append('--system-site-packages')
     if python_bin is not None:
-        cmd.append('--python={}'.format(python_bin))
+        cmd.append(f'--python={python_bin}')
     return cmd
 
 
@@ -40,15 +39,42 @@ def _generate_pip_install_cmd(tmp_dir: str, requirements: List[str]) -> Optional
     if not requirements:
         return None
     # direct path alleviates need to activate
-    cmd = ['{}/bin/pip'.format(tmp_dir), 'install']
+    cmd = [f'{tmp_dir}/bin/pip', 'install']
     return cmd + requirements
 
 
+def _balance_parens(after_decorator):
+    num_paren = 1
+    after_decorator = deque(after_decorator)
+    after_decorator.popleft()
+    while num_paren:
+        current = after_decorator.popleft()
+        if current == "(":
+            num_paren = num_paren + 1
+        elif current == ")":
+            num_paren = num_paren - 1
+    return ''.join(after_decorator)
+
+
+def remove_task_decorator(python_source: str, task_decorator_name: str) -> str:
+    """
+    Removed @task.virtualenv
+
+    :param python_source:
+    """
+    if task_decorator_name not in python_source:
+        return python_source
+    split = python_source.split(task_decorator_name)
+    before_decorator, after_decorator = split[0], split[1]
+    if after_decorator[0] == "(":
+        after_decorator = _balance_parens(after_decorator)
+    if after_decorator[0] == "\n":
+        after_decorator = after_decorator[1:]
+    return before_decorator + after_decorator
+
+
 def prepare_virtualenv(
-    venv_directory: str,
-    python_bin: str,
-    system_site_packages: bool,
-    requirements: List[str]
+    venv_directory: str, python_bin: str, system_site_packages: bool, requirements: List[str]
 ) -> str:
     """
     Creates a virtual environment and installs the additional python packages
@@ -71,7 +97,7 @@ def prepare_virtualenv(
     if pip_cmd:
         execute_in_subprocess(pip_cmd)
 
-    return '{}/bin/python'.format(venv_directory)
+    return f'{venv_directory}/bin/python'
 
 
 def write_python_script(jinja_context: dict, filename: str):
@@ -85,9 +111,6 @@ def write_python_script(jinja_context: dict, filename: str):
     :type filename: str
     """
     template_loader = jinja2.FileSystemLoader(searchpath=os.path.dirname(__file__))
-    template_env = jinja2.Environment(
-        loader=template_loader,
-        undefined=jinja2.StrictUndefined
-    )
+    template_env = jinja2.Environment(loader=template_loader, undefined=jinja2.StrictUndefined)
     template = template_env.get_template('python_virtualenv_script.jinja2')
     template.stream(**jinja_context).dump(filename)

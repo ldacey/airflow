@@ -27,9 +27,7 @@ from airflow.version import version
 INTERNAL_CLIENT_MODULE = "airflow.providers.google.cloud._internal_client.secret_manager_client"
 
 
-# noinspection DuplicatedCode,PyUnresolvedReferences
 class TestSecretManagerClient(TestCase):
-
     @mock.patch(INTERNAL_CLIENT_MODULE + ".SecretManagerServiceClient")
     @mock.patch(INTERNAL_CLIENT_MODULE + ".ClientInfo")
     def test_auth(self, mock_client_info, mock_secrets_client):
@@ -38,13 +36,8 @@ class TestSecretManagerClient(TestCase):
         mock_secrets_client.return_value = mock.MagicMock()
         secrets_client = _SecretManagerClient(credentials="credentials")
         _ = secrets_client.client
-        mock_client_info.assert_called_with(
-            client_library_version='airflow_v' + version
-        )
-        mock_secrets_client.assert_called_with(
-            credentials='credentials',
-            client_info=mock_client_info_mock
-        )
+        mock_client_info.assert_called_with(client_library_version='airflow_v' + version)
+        mock_secrets_client.assert_called_with(credentials='credentials', client_info=mock_client_info_mock)
 
     @mock.patch(INTERNAL_CLIENT_MODULE + ".SecretManagerServiceClient")
     @mock.patch(INTERNAL_CLIENT_MODULE + ".ClientInfo")
@@ -58,7 +51,7 @@ class TestSecretManagerClient(TestCase):
         secrets_client = _SecretManagerClient(credentials="credentials")
         secret = secrets_client.get_secret(secret_id="missing", project_id="project_id")
         mock_client.secret_version_path.assert_called_once_with("project_id", 'missing', 'latest')
-        self.assertIsNone(secret)
+        assert secret is None
         mock_client.access_secret_version.assert_called_once_with('full-path')
 
     @mock.patch(INTERNAL_CLIENT_MODULE + ".SecretManagerServiceClient")
@@ -73,7 +66,7 @@ class TestSecretManagerClient(TestCase):
         secrets_client = _SecretManagerClient(credentials="credentials")
         secret = secrets_client.get_secret(secret_id="missing", project_id="project_id")
         mock_client.secret_version_path.assert_called_once_with("project_id", 'missing', 'latest')
-        self.assertIsNone(secret)
+        assert secret is None
         mock_client.access_secret_version.assert_called_once_with('full-path')
 
     @mock.patch(INTERNAL_CLIENT_MODULE + ".SecretManagerServiceClient")
@@ -84,12 +77,12 @@ class TestSecretManagerClient(TestCase):
         mock_secrets_client.return_value = mock_client
         mock_client.secret_version_path.return_value = "full-path"
         test_response = AccessSecretVersionResponse()
-        test_response.payload.data = "result".encode("UTF-8")
+        test_response.payload.data = b"result"
         mock_client.access_secret_version.return_value = test_response
         secrets_client = _SecretManagerClient(credentials="credentials")
         secret = secrets_client.get_secret(secret_id="existing", project_id="project_id")
         mock_client.secret_version_path.assert_called_once_with("project_id", 'existing', 'latest')
-        self.assertEqual("result", secret)
+        assert "result" == secret
         mock_client.access_secret_version.assert_called_once_with('full-path')
 
     @mock.patch(INTERNAL_CLIENT_MODULE + ".SecretManagerServiceClient")
@@ -100,11 +93,12 @@ class TestSecretManagerClient(TestCase):
         mock_secrets_client.return_value = mock_client
         mock_client.secret_version_path.return_value = "full-path"
         test_response = AccessSecretVersionResponse()
-        test_response.payload.data = "result".encode("UTF-8")
+        test_response.payload.data = b"result"
         mock_client.access_secret_version.return_value = test_response
         secrets_client = _SecretManagerClient(credentials="credentials")
-        secret = secrets_client.get_secret(secret_id="existing", project_id="project_id",
-                                           secret_version="test-version")
+        secret = secrets_client.get_secret(
+            secret_id="existing", project_id="project_id", secret_version="test-version"
+        )
         mock_client.secret_version_path.assert_called_once_with("project_id", 'existing', 'test-version')
-        self.assertEqual("result", secret)
+        assert "result" == secret
         mock_client.access_secret_version.assert_called_once_with('full-path')

@@ -17,12 +17,14 @@
 # under the License.
 import unittest
 from datetime import timedelta
+from unittest.mock import patch
 
-from mock import patch
+import pytest
 
-from airflow import AirflowException, example_dags as example_dags_module, models
+from airflow import AirflowException, example_dags as example_dags_module
 from airflow.models import DagBag
 from airflow.models.dagcode import DagCode
+
 # To move it to a shared module.
 from airflow.utils.file import open_maybe_zipped
 from airflow.utils.session import create_session
@@ -83,7 +85,7 @@ class TestDagCode(unittest.TestCase):
         """Dg code can be bulk written into database."""
         example_dags = make_example_dags(example_dags_module)
         files = [dag.fileloc for dag in example_dags.values()]
-        half_files = files[:int(len(files) / 2)]
+        half_files = files[: int(len(files) / 2)]
         with create_session() as session:
             DagCode.bulk_sync_to_db(half_files, session=session)
             session.commit()
@@ -98,44 +100,27 @@ class TestDagCode(unittest.TestCase):
         """Dag code detects duplicate key."""
         mock_hash.return_value = 0
 
-        with self.assertRaises(AirflowException):
+        with pytest.raises(AirflowException):
             self._write_two_example_dags()
-
-    def test_remove_unused_code(self):
-        example_dags = make_example_dags(example_dags_module)
-        self._write_example_dags()
-
-        bash_dag = example_dags['example_bash_operator']
-        with create_session() as session:
-            for model in models.base.Base._decl_class_registry.values():  # pylint: disable=protected-access
-                if hasattr(model, "dag_id"):
-                    session.query(model) \
-                        .filter(model.dag_id == bash_dag.dag_id) \
-                        .delete(synchronize_session='fetch')
-
-            self.assertEqual(session.query(DagCode).filter(DagCode.fileloc == bash_dag.fileloc).count(), 1)
-
-            DagCode.remove_unused_code()
-
-            self.assertEqual(session.query(DagCode).filter(DagCode.fileloc == bash_dag.fileloc).count(), 0)
 
     def _compare_example_dags(self, example_dags):
         with create_session() as session:
             for dag in example_dags.values():
                 if dag.is_subdag:
                     dag.fileloc = dag.parent_dag.fileloc
-                self.assertTrue(DagCode.has_dag(dag.fileloc))
+                assert DagCode.has_dag(dag.fileloc)
                 dag_fileloc_hash = DagCode.dag_fileloc_hash(dag.fileloc)
-                result = session.query(
-                    DagCode.fileloc, DagCode.fileloc_hash, DagCode.source_code) \
-                    .filter(DagCode.fileloc == dag.fileloc) \
-                    .filter(DagCode.fileloc_hash == dag_fileloc_hash) \
+                result = (
+                    session.query(DagCode.fileloc, DagCode.fileloc_hash, DagCode.source_code)
+                    .filter(DagCode.fileloc == dag.fileloc)
+                    .filter(DagCode.fileloc_hash == dag_fileloc_hash)
                     .one()
+                )
 
-                self.assertEqual(result.fileloc, dag.fileloc)
+                assert result.fileloc == dag.fileloc
                 with open_maybe_zipped(dag.fileloc, 'r') as source:
                     source_code = source.read()
-                self.assertEqual(result.source_code, source_code)
+                assert result.source_code == source_code
 
     @conf_vars({('core', 'store_dag_code'): 'True'})
     @patch("airflow.models.dag.settings.STORE_DAG_CODE", True)
@@ -143,7 +128,7 @@ class TestDagCode(unittest.TestCase):
     def test_code_can_be_read_when_no_access_to_file(self):
         """
         Test that code can be retrieved from DB when you do not have access to Code file.
-        Source Code should atleast exist in one of DB or File.
+        Source Code should at least exist in one of DB or File.
         """
         example_dag = make_example_dags(example_dags_module).get('example_bash_operator')
         example_dag.sync_to_db()
@@ -154,7 +139,7 @@ class TestDagCode(unittest.TestCase):
             dag_code = DagCode.get_code_by_fileloc(example_dag.fileloc)
 
             for test_string in ['example_bash_operator', 'also_run_this', 'run_this_last']:
-                self.assertIn(test_string, dag_code)
+                assert test_string in dag_code
 
     @conf_vars({('core', 'store_dag_code'): 'True'})
     @patch("airflow.models.dag.settings.STORE_DAG_CODE", True)
@@ -164,12 +149,10 @@ class TestDagCode(unittest.TestCase):
         example_dag.sync_to_db()
 
         with create_session() as session:
-            result = session.query(DagCode) \
-                .filter(DagCode.fileloc == example_dag.fileloc) \
-                .one()
+            result = session.query(DagCode).filter(DagCode.fileloc == example_dag.fileloc).one()
 
-            self.assertEqual(result.fileloc, example_dag.fileloc)
-            self.assertIsNotNone(result.source_code)
+            assert result.fileloc == example_dag.fileloc
+            assert result.source_code is not None
 
         with patch('airflow.models.dagcode.os.path.getmtime') as mock_mtime:
             mock_mtime.return_value = (result.last_updated + timedelta(seconds=1)).timestamp()
@@ -179,10 +162,8 @@ class TestDagCode(unittest.TestCase):
                 example_dag.sync_to_db()
 
                 with create_session() as session:
-                    new_result = session.query(DagCode) \
-                        .filter(DagCode.fileloc == example_dag.fileloc) \
-                        .one()
+                    new_result = session.query(DagCode).filter(DagCode.fileloc == example_dag.fileloc).one()
 
-                    self.assertEqual(new_result.fileloc, example_dag.fileloc)
-                    self.assertEqual(new_result.source_code, "# dummy code")
-                    self.assertGreater(new_result.last_updated, result.last_updated)
+                    assert new_result.fileloc == example_dag.fileloc
+                    assert new_result.source_code == "# dummy code"
+                    assert new_result.last_updated > result.last_updated

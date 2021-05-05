@@ -17,41 +17,69 @@
 # under the License.
 
 # Docker command to build documentation
-function run_docs() {
-    verbose_docker run "${EXTRA_DOCKER_FLAGS[@]}" -t \
-            --entrypoint "/usr/local/bin/dumb-init"  \
-            "${AIRFLOW_CI_IMAGE}" \
-            "--" "/opt/airflow/docs/build" \
-            | tee -a "${OUTPUT_LOG}"
+function runs::run_docs() {
+    start_end::group_start "Run build docs"
+    docker_v run "${EXTRA_DOCKER_FLAGS[@]}" -t \
+        -e "GITHUB_ACTIONS=${GITHUB_ACTIONS="false"}" \
+        --entrypoint "/usr/local/bin/dumb-init"  \
+        "${AIRFLOW_CI_IMAGE}" \
+        "--" "/opt/airflow/scripts/in_container/run_docs_build.sh" "${@}"
+    start_end::group_end
 }
 
 # Docker command to generate constraint files.
-function run_generate_constraints() {
-    docker run "${EXTRA_DOCKER_FLAGS[@]}" \
+function runs::run_generate_constraints() {
+    start_end::group_start "Run generate constraints"
+    docker_v run "${EXTRA_DOCKER_FLAGS[@]}" \
         --entrypoint "/usr/local/bin/dumb-init"  \
         "${AIRFLOW_CI_IMAGE}" \
-        "--" "/opt/airflow/scripts/ci/in_container/run_generate_constraints.sh" \
-        | tee -a "${OUTPUT_LOG}"
+        "--" "/opt/airflow/scripts/in_container/run_generate_constraints.sh"
+    start_end::group_end
 }
 
-# Docker command to prepare backport packages
-function run_prepare_backport_packages() {
-    docker run "${EXTRA_DOCKER_FLAGS[@]}" \
+# Docker command to prepare airflow packages
+function runs::run_prepare_airflow_packages() {
+    start_end::group_start "Run prepare airflow packages"
+    docker_v run "${EXTRA_DOCKER_FLAGS[@]}" \
         --entrypoint "/usr/local/bin/dumb-init"  \
         -t \
         -v "${AIRFLOW_SOURCES}:/opt/airflow" \
         "${AIRFLOW_CI_IMAGE}" \
-        "--" "/opt/airflow/scripts/ci/in_container/run_prepare_backport_packages.sh" "${@}" \
-        | tee -a "${OUTPUT_LOG}"
+        "--" "/opt/airflow/scripts/in_container/run_prepare_airflow_packages.sh" "${@}"
+    start_end::group_end
 }
 
-# Docker command to generate release notes for backport packages
-function run_prepare_backport_readme() {
-    docker run "${EXTRA_DOCKER_FLAGS[@]}" \
+
+# Docker command to prepare provider packages
+function runs::run_prepare_provider_packages() {
+    # No group here - groups are added internally
+    docker_v run "${EXTRA_DOCKER_FLAGS[@]}" \
         --entrypoint "/usr/local/bin/dumb-init"  \
         -t \
         -v "${AIRFLOW_SOURCES}:/opt/airflow" \
         "${AIRFLOW_CI_IMAGE}" \
-        "--" "/opt/airflow/scripts/ci/in_container/run_prepare_backport_readme.sh" "${@}" \
-        | tee -a "${OUTPUT_LOG}"
+        "--" "/opt/airflow/scripts/in_container/run_prepare_provider_packages.sh" "${@}"
+}
+
+# Docker command to generate release notes for provider packages
+function runs::run_prepare_provider_documentation_non_interactively() {
+    # No group here - groups are added internally
+    docker_v run "${EXTRA_DOCKER_FLAGS[@]}" \
+        --entrypoint "/usr/local/bin/dumb-init"  \
+        -t \
+        -v "${AIRFLOW_SOURCES}:/opt/airflow" \
+        -e "NO_INTERACTIVE=true" \
+        "${AIRFLOW_CI_IMAGE}" \
+        "--" "/opt/airflow/scripts/in_container/run_prepare_provider_documentation.sh" "${@}"
+}
+
+# Docker command to generate release notes for provider packages
+function runs::run_prepare_provider_documentation_interactively() {
+    # No group here - groups are added internally
+    docker_v run "${EXTRA_DOCKER_FLAGS[@]}" \
+        --entrypoint "/usr/local/bin/dumb-init"  \
+        -it \
+        -v "${AIRFLOW_SOURCES}:/opt/airflow" \
+        "${AIRFLOW_CI_IMAGE}" \
+        "--" "/opt/airflow/scripts/in_container/run_prepare_provider_documentation.sh" "${@}"
 }

@@ -15,17 +15,22 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""This module is deprecated. Please use `airflow.providers.amazon.aws.hooks.sagemaker`."""
+"""This module is deprecated. Please use :mod:`airflow.providers.amazon.aws.hooks.sagemaker`."""
 
 import warnings
 
 # pylint: disable=unused-import
 from airflow.providers.amazon.aws.hooks.sagemaker import (  # noqa
-    LogState, Position, SageMakerHook, argmin, secondary_training_status_changed,
+    LogState,
+    Position,
+    SageMakerHook,
+    argmin,
+    secondary_training_status_changed,
     secondary_training_status_message,
 )
 
 warnings.warn(
     "This module is deprecated. Please use `airflow.providers.amazon.aws.hooks.sagemaker`.",
-    DeprecationWarning, stacklevel=2
+    DeprecationWarning,
+    stacklevel=2,
 )

@@ -15,7 +15,10 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""This module is deprecated. Please use `airflow.providers.cncf.kubernetes.operators.kubernetes_pod`."""
+"""
+This module is deprecated.
+Please use :mod:`airflow.providers.cncf.kubernetes.operators.kubernetes_pod`.
+"""
 
 import warnings
 
@@ -24,5 +27,6 @@ from airflow.providers.cncf.kubernetes.operators.kubernetes_pod import Kubernete
 
 warnings.warn(
     "This module is deprecated. Please use `airflow.providers.cncf.kubernetes.operators.kubernetes_pod`.",
-    DeprecationWarning, stacklevel=2
+    DeprecationWarning,
+    stacklevel=2,
 )

@@ -23,38 +23,45 @@ from airflow.providers.jenkins.hooks.jenkins import JenkinsHook
 
 
 class TestJenkinsHook(unittest.TestCase):
-
-    @mock.patch('airflow.hooks.base_hook.BaseHook.get_connection')
+    @mock.patch('airflow.hooks.base.BaseHook.get_connection')
     def test_client_created_default_http(self, get_connection_mock):
-        """ tests `init` method to validate http client creation when all parameters are passed """
+        """tests `init` method to validate http client creation when all parameters are passed"""
         default_connection_id = 'jenkins_default'
 
         connection_host = 'http://test.com'
         connection_port = 8080
-        get_connection_mock.return_value = mock. \
-            Mock(connection_id=default_connection_id,
-                 login='test', password='test', extra='',
-                 host=connection_host, port=connection_port)
+        get_connection_mock.return_value = mock.Mock(
+            connection_id=default_connection_id,
+            login='test',
+            password='test',
+            extra='',
+            host=connection_host,
+            port=connection_port,
+        )
 
         complete_url = f'http://{connection_host}:{connection_port}/'
         hook = JenkinsHook(default_connection_id)
-        self.assertIsNotNone(hook.jenkins_server)
-        self.assertEqual(hook.jenkins_server.server, complete_url)
+        assert hook.jenkins_server is not None
+        assert hook.jenkins_server.server == complete_url
 
-    @mock.patch('airflow.hooks.base_hook.BaseHook.get_connection')
+    @mock.patch('airflow.hooks.base.BaseHook.get_connection')
     def test_client_created_default_https(self, get_connection_mock):
-        """ tests `init` method to validate https client creation when all
-        parameters are passed """
+        """tests `init` method to validate https client creation when all
+        parameters are passed"""
         default_connection_id = 'jenkins_default'
 
         connection_host = 'http://test.com'
         connection_port = 8080
-        get_connection_mock.return_value = mock. \
-            Mock(connection_id=default_connection_id,
-                 login='test', password='test', extra='true',
-                 host=connection_host, port=connection_port)
+        get_connection_mock.return_value = mock.Mock(
+            connection_id=default_connection_id,
+            login='test',
+            password='test',
+            extra='true',
+            host=connection_host,
+            port=connection_port,
+        )
 
         complete_url = f'https://{connection_host}:{connection_port}/'
         hook = JenkinsHook(default_connection_id)
-        self.assertIsNotNone(hook.jenkins_server)
-        self.assertEqual(hook.jenkins_server.server, complete_url)
+        assert hook.jenkins_server is not None
+        assert hook.jenkins_server.server == complete_url

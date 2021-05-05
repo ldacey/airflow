@@ -19,7 +19,7 @@
 from typing import Dict, List, Union
 
 from airflow.providers.redis.hooks.redis import RedisHook
-from airflow.sensors.base_sensor_operator import BaseSensorOperator
+from airflow.sensors.base import BaseSensorOperator
 from airflow.utils.decorators import apply_defaults
 
 
@@ -32,6 +32,7 @@ class RedisPubSubSensor(BaseSensorOperator):
     :param redis_conn_id: the redis connection id
     :type redis_conn_id: str
     """
+
     template_fields = ('channels',)
     ui_color = '#f0eee4'
 

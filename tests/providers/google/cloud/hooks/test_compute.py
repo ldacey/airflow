@@ -19,14 +19,16 @@
 # pylint: disable=too-many-lines
 
 import unittest
+from unittest import mock
+from unittest.mock import PropertyMock
 
-import mock
-from mock import PropertyMock
+import pytest
 
 from airflow.exceptions import AirflowException
 from airflow.providers.google.cloud.hooks.compute import ComputeEngineHook, GceOperationStatus
 from tests.providers.google.cloud.utils.base_gcp_mock import (
-    GCP_PROJECT_ID_HOOK_UNIT_TEST, mock_base_gcp_hook_default_project_id,
+    GCP_PROJECT_ID_HOOK_UNIT_TEST,
+    mock_base_gcp_hook_default_project_id,
     mock_base_gcp_hook_no_default_project_id,
 )
 
@@ -38,10 +40,11 @@ GCE_INSTANCE_GROUP_MANAGER = 'instance_group_manager'
 
 
 class TestGcpComputeHookNoDefaultProjectId(unittest.TestCase):
-
     def setUp(self):
-        with mock.patch('airflow.providers.google.common.hooks.base_google.GoogleBaseHook.__init__',
-                        new=mock_base_gcp_hook_no_default_project_id):
+        with mock.patch(
+            'airflow.providers.google.common.hooks.base_google.GoogleBaseHook.__init__',
+            new=mock_base_gcp_hook_no_default_project_id,
+        ):
             self.gce_hook_no_project_id = ComputeEngineHook(gcp_conn_id='test')
 
     @mock.patch("airflow.providers.google.cloud.hooks.compute.ComputeEngineHook._authorize")
@@ -51,7 +54,7 @@ class TestGcpComputeHookNoDefaultProjectId(unittest.TestCase):
         mock_build.assert_called_once_with(
             'compute', 'v1', http=mock_authorize.return_value, cache_discovery=False
         )
-        self.assertEqual(mock_build.return_value, result)
+        assert mock_build.return_value == result
 
     @mock.patch('airflow.providers.google.cloud.hooks.compute.ComputeEngineHook.get_conn')
     @mock.patch(
@@ -63,15 +66,14 @@ class TestGcpComputeHookNoDefaultProjectId(unittest.TestCase):
         execute_method.return_value = {"name": "operation_id"}
         wait_for_operation_to_complete.return_value = None
         res = self.gce_hook_no_project_id.start_instance(
-            project_id='example-project',
-            zone=GCE_ZONE,
-            resource_id=GCE_INSTANCE)
-        self.assertIsNone(res)
+            project_id='example-project', zone=GCE_ZONE, resource_id=GCE_INSTANCE
+        )
+        assert res is None
         start_method.assert_called_once_with(instance='instance', project='example-project', zone='zone')
         execute_method.assert_called_once_with(num_retries=5)
-        wait_for_operation_to_complete.assert_called_once_with(project_id='example-project',
-                                                               operation_name='operation_id',
-                                                               zone='zone')
+        wait_for_operation_to_complete.assert_called_once_with(
+            project_id='example-project', operation_name='operation_id', zone='zone'
+        )
 
     @mock.patch('airflow.providers.google.cloud.hooks.compute.ComputeEngineHook.get_conn')
     @mock.patch(
@@ -83,15 +85,14 @@ class TestGcpComputeHookNoDefaultProjectId(unittest.TestCase):
         execute_method.return_value = {"name": "operation_id"}
         wait_for_operation_to_complete.return_value = None
         res = self.gce_hook_no_project_id.stop_instance(
-            project_id='example-project',
-            zone=GCE_ZONE,
-            resource_id=GCE_INSTANCE)
-        self.assertIsNone(res)
+            project_id='example-project', zone=GCE_ZONE, resource_id=GCE_INSTANCE
+        )
+        assert res is None
         stop_method.assert_called_once_with(instance='instance', project='example-project', zone='zone')
         execute_method.assert_called_once_with(num_retries=5)
-        wait_for_operation_to_complete.assert_called_once_with(project_id='example-project',
-                                                               operation_name='operation_id',
-                                                               zone='zone')
+        wait_for_operation_to_complete.assert_called_once_with(
+            project_id='example-project', operation_name='operation_id', zone='zone'
+        )
 
     @mock.patch('airflow.providers.google.cloud.hooks.compute.ComputeEngineHook.get_conn')
     @mock.patch(
@@ -103,17 +104,16 @@ class TestGcpComputeHookNoDefaultProjectId(unittest.TestCase):
         execute_method.return_value = {"name": "operation_id"}
         wait_for_operation_to_complete.return_value = None
         res = self.gce_hook_no_project_id.set_machine_type(
-            body={},
-            project_id='example-project',
-            zone=GCE_ZONE,
-            resource_id=GCE_INSTANCE)
-        self.assertIsNone(res)
-        set_machine_type_method.assert_called_once_with(body={}, instance='instance',
-                                                        project='example-project', zone='zone')
+            body={}, project_id='example-project', zone=GCE_ZONE, resource_id=GCE_INSTANCE
+        )
+        assert res is None
+        set_machine_type_method.assert_called_once_with(
+            body={}, instance='instance', project='example-project', zone='zone'
+        )
         execute_method.assert_called_once_with(num_retries=5)
-        wait_for_operation_to_complete.assert_called_once_with(project_id='example-project',
-                                                               operation_name='operation_id',
-                                                               zone='zone')
+        wait_for_operation_to_complete.assert_called_once_with(
+            project_id='example-project', operation_name='operation_id', zone='zone'
+        )
 
     @mock.patch('airflow.providers.google.cloud.hooks.compute.ComputeEngineHook.get_conn')
     @mock.patch(
@@ -125,10 +125,9 @@ class TestGcpComputeHookNoDefaultProjectId(unittest.TestCase):
         execute_method.return_value = {"name": "operation_id"}
         wait_for_operation_to_complete.return_value = None
         res = self.gce_hook_no_project_id.get_instance_template(
-            resource_id=GCE_INSTANCE_TEMPLATE,
-            project_id='example-project'
+            resource_id=GCE_INSTANCE_TEMPLATE, project_id='example-project'
         )
-        self.assertIsNotNone(res)
+        assert res is not None
         get_method.assert_called_once_with(instanceTemplate='instance-template', project='example-project')
         execute_method.assert_called_once_with(num_retries=5)
         wait_for_operation_to_complete.assert_not_called()
@@ -143,15 +142,14 @@ class TestGcpComputeHookNoDefaultProjectId(unittest.TestCase):
         execute_method.return_value = {"name": "operation_id"}
         wait_for_operation_to_complete.return_value = None
         res = self.gce_hook_no_project_id.insert_instance_template(
-            project_id=GCP_PROJECT_ID_HOOK_UNIT_TEST,
-            body={},
-            request_id=GCE_REQUEST_ID
+            project_id=GCP_PROJECT_ID_HOOK_UNIT_TEST, body={}, request_id=GCE_REQUEST_ID
         )
-        self.assertIsNone(res)
+        assert res is None
         insert_method.assert_called_once_with(body={}, project='example-project', requestId='request_id')
         execute_method.assert_called_once_with(num_retries=5)
-        wait_for_operation_to_complete.assert_called_once_with(project_id='example-project',
-                                                               operation_name='operation_id')
+        wait_for_operation_to_complete.assert_called_once_with(
+            project_id='example-project', operation_name='operation_id'
+        )
 
     @mock.patch('airflow.providers.google.cloud.hooks.compute.ComputeEngineHook.get_conn')
     @mock.patch(
@@ -163,14 +161,12 @@ class TestGcpComputeHookNoDefaultProjectId(unittest.TestCase):
         execute_method.return_value = {"name": "operation_id"}
         wait_for_operation_to_complete.return_value = None
         res = self.gce_hook_no_project_id.get_instance_group_manager(
-            project_id=GCP_PROJECT_ID_HOOK_UNIT_TEST,
-            zone=GCE_ZONE,
-            resource_id=GCE_INSTANCE_GROUP_MANAGER
+            project_id=GCP_PROJECT_ID_HOOK_UNIT_TEST, zone=GCE_ZONE, resource_id=GCE_INSTANCE_GROUP_MANAGER
         )
-        self.assertIsNotNone(res)
-        get_method.assert_called_once_with(instanceGroupManager='instance_group_manager',
-                                           project='example-project',
-                                           zone='zone')
+        assert res is not None
+        get_method.assert_called_once_with(
+            instanceGroupManager='instance_group_manager', project='example-project', zone='zone'
+        )
         execute_method.assert_called_once_with(num_retries=5)
         wait_for_operation_to_complete.assert_not_called()
 
@@ -178,8 +174,9 @@ class TestGcpComputeHookNoDefaultProjectId(unittest.TestCase):
     @mock.patch(
         'airflow.providers.google.cloud.hooks.compute.ComputeEngineHook._wait_for_operation_to_complete'
     )
-    def test_patch_instance_group_manager_overridden_project_id(self,
-                                                                wait_for_operation_to_complete, get_conn):
+    def test_patch_instance_group_manager_overridden_project_id(
+        self, wait_for_operation_to_complete, get_conn
+    ):
         patch_method = get_conn.return_value.instanceGroupManagers.return_value.patch
         execute_method = patch_method.return_value.execute
         execute_method.return_value = {"name": "operation_id"}
@@ -189,32 +186,34 @@ class TestGcpComputeHookNoDefaultProjectId(unittest.TestCase):
             zone=GCE_ZONE,
             resource_id=GCE_INSTANCE_GROUP_MANAGER,
             body={},
-            request_id=GCE_REQUEST_ID
+            request_id=GCE_REQUEST_ID,
         )
-        self.assertIsNone(res)
+        assert res is None
         patch_method.assert_called_once_with(
             body={},
             instanceGroupManager='instance_group_manager',
             project='example-project',
             requestId='request_id',
-            zone='zone'
+            zone='zone',
         )
         execute_method.assert_called_once_with(num_retries=5)
-        wait_for_operation_to_complete.assert_called_once_with(operation_name='operation_id',
-                                                               project_id='example-project',
-                                                               zone='zone')
+        wait_for_operation_to_complete.assert_called_once_with(
+            operation_name='operation_id', project_id='example-project', zone='zone'
+        )
 
 
 class TestGcpComputeHookDefaultProjectId(unittest.TestCase):
     def setUp(self):
-        with mock.patch('airflow.providers.google.common.hooks.base_google.GoogleBaseHook.__init__',
-                        new=mock_base_gcp_hook_default_project_id):
+        with mock.patch(
+            'airflow.providers.google.common.hooks.base_google.GoogleBaseHook.__init__',
+            new=mock_base_gcp_hook_default_project_id,
+        ):
             self.gce_hook = ComputeEngineHook(gcp_conn_id='test')
 
     @mock.patch(
         'airflow.providers.google.common.hooks.base_google.GoogleBaseHook.project_id',
         new_callable=PropertyMock,
-        return_value=GCP_PROJECT_ID_HOOK_UNIT_TEST
+        return_value=GCP_PROJECT_ID_HOOK_UNIT_TEST,
     )
     @mock.patch('airflow.providers.google.cloud.hooks.compute.ComputeEngineHook.get_conn')
     @mock.patch(
@@ -230,12 +229,12 @@ class TestGcpComputeHookDefaultProjectId(unittest.TestCase):
             resource_id=GCE_INSTANCE,
             project_id=GCP_PROJECT_ID_HOOK_UNIT_TEST,
         )
-        self.assertIsNone(res)
+        assert res is None
         start_method.assert_called_once_with(instance='instance', project='example-project', zone='zone')
         execute_method.assert_called_once_with(num_retries=5)
-        wait_for_operation_to_complete.assert_called_once_with(project_id='example-project',
-                                                               operation_name='operation_id',
-                                                               zone='zone')
+        wait_for_operation_to_complete.assert_called_once_with(
+            project_id='example-project', operation_name='operation_id', zone='zone'
+        )
 
     @mock.patch('airflow.providers.google.cloud.hooks.compute.ComputeEngineHook.get_conn')
     @mock.patch(
@@ -246,21 +245,18 @@ class TestGcpComputeHookDefaultProjectId(unittest.TestCase):
         execute_method = start_method.return_value.execute
         execute_method.return_value = {"name": "operation_id"}
         wait_for_operation_to_complete.return_value = None
-        res = self.gce_hook.start_instance(
-            project_id='new-project',
-            zone=GCE_ZONE,
-            resource_id=GCE_INSTANCE)
-        self.assertIsNone(res)
+        res = self.gce_hook.start_instance(project_id='new-project', zone=GCE_ZONE, resource_id=GCE_INSTANCE)
+        assert res is None
         start_method.assert_called_once_with(instance='instance', project='new-project', zone='zone')
         execute_method.assert_called_once_with(num_retries=5)
-        wait_for_operation_to_complete.assert_called_once_with(project_id='new-project',
-                                                               operation_name='operation_id',
-                                                               zone='zone')
+        wait_for_operation_to_complete.assert_called_once_with(
+            project_id='new-project', operation_name='operation_id', zone='zone'
+        )
 
     @mock.patch(
         'airflow.providers.google.common.hooks.base_google.GoogleBaseHook.project_id',
         new_callable=PropertyMock,
-        return_value=GCP_PROJECT_ID_HOOK_UNIT_TEST
+        return_value=GCP_PROJECT_ID_HOOK_UNIT_TEST,
     )
     @mock.patch('airflow.providers.google.cloud.hooks.compute.ComputeEngineHook.get_conn')
     @mock.patch(
@@ -276,12 +272,12 @@ class TestGcpComputeHookDefaultProjectId(unittest.TestCase):
             resource_id=GCE_INSTANCE,
             project_id=GCP_PROJECT_ID_HOOK_UNIT_TEST,
         )
-        self.assertIsNone(res)
+        assert res is None
         stop_method.assert_called_once_with(instance='instance', project='example-project', zone='zone')
         execute_method.assert_called_once_with(num_retries=5)
-        wait_for_operation_to_complete.assert_called_once_with(project_id='example-project',
-                                                               operation_name='operation_id',
-                                                               zone='zone')
+        wait_for_operation_to_complete.assert_called_once_with(
+            project_id='example-project', operation_name='operation_id', zone='zone'
+        )
 
     @mock.patch('airflow.providers.google.cloud.hooks.compute.ComputeEngineHook.get_conn')
     @mock.patch(
@@ -292,21 +288,18 @@ class TestGcpComputeHookDefaultProjectId(unittest.TestCase):
         execute_method = stop_method.return_value.execute
         execute_method.return_value = {"name": "operation_id"}
         wait_for_operation_to_complete.return_value = None
-        res = self.gce_hook.stop_instance(
-            project_id='new-project',
-            zone=GCE_ZONE,
-            resource_id=GCE_INSTANCE)
-        self.assertIsNone(res)
+        res = self.gce_hook.stop_instance(project_id='new-project', zone=GCE_ZONE, resource_id=GCE_INSTANCE)
+        assert res is None
         stop_method.assert_called_once_with(instance='instance', project='new-project', zone='zone')
         execute_method.assert_called_once_with(num_retries=5)
-        wait_for_operation_to_complete.assert_called_once_with(project_id='new-project',
-                                                               operation_name='operation_id',
-                                                               zone='zone')
+        wait_for_operation_to_complete.assert_called_once_with(
+            project_id='new-project', operation_name='operation_id', zone='zone'
+        )
 
     @mock.patch(
         'airflow.providers.google.common.hooks.base_google.GoogleBaseHook.project_id',
         new_callable=PropertyMock,
-        return_value=GCP_PROJECT_ID_HOOK_UNIT_TEST
+        return_value=GCP_PROJECT_ID_HOOK_UNIT_TEST,
     )
     @mock.patch('airflow.providers.google.cloud.hooks.compute.ComputeEngineHook.get_conn')
     @mock.patch(
@@ -322,11 +315,11 @@ class TestGcpComputeHookDefaultProjectId(unittest.TestCase):
             resource_id=GCE_INSTANCE,
             project_id=GCP_PROJECT_ID_HOOK_UNIT_TEST,
         )
-        self.assertIsNone(res)
+        assert res is None
         execute_method.assert_called_once_with(num_retries=5)
-        wait_for_operation_to_complete.assert_called_once_with(project_id='example-project',
-                                                               operation_name='operation_id',
-                                                               zone='zone')
+        wait_for_operation_to_complete.assert_called_once_with(
+            project_id='example-project', operation_name='operation_id', zone='zone'
+        )
 
     @mock.patch('airflow.providers.google.cloud.hooks.compute.ComputeEngineHook.get_conn')
     @mock.patch(
@@ -337,20 +330,18 @@ class TestGcpComputeHookDefaultProjectId(unittest.TestCase):
         execute_method.return_value = {"name": "operation_id"}
         wait_for_operation_to_complete.return_value = None
         res = self.gce_hook.set_machine_type(
-            project_id='new-project',
-            body={},
-            zone=GCE_ZONE,
-            resource_id=GCE_INSTANCE)
-        self.assertIsNone(res)
+            project_id='new-project', body={}, zone=GCE_ZONE, resource_id=GCE_INSTANCE
+        )
+        assert res is None
         execute_method.assert_called_once_with(num_retries=5)
-        wait_for_operation_to_complete.assert_called_once_with(project_id='new-project',
-                                                               operation_name='operation_id',
-                                                               zone='zone')
+        wait_for_operation_to_complete.assert_called_once_with(
+            project_id='new-project', operation_name='operation_id', zone='zone'
+        )
 
     @mock.patch(
         'airflow.providers.google.common.hooks.base_google.GoogleBaseHook.project_id',
         new_callable=PropertyMock,
-        return_value=GCP_PROJECT_ID_HOOK_UNIT_TEST
+        return_value=GCP_PROJECT_ID_HOOK_UNIT_TEST,
     )
     @mock.patch('airflow.providers.google.cloud.hooks.compute.ComputeEngineHook.get_conn')
     @mock.patch(
@@ -362,9 +353,9 @@ class TestGcpComputeHookDefaultProjectId(unittest.TestCase):
         execute_method.return_value = {"name": "operation_id"}
         wait_for_operation_to_complete.return_value = None
         res = self.gce_hook.get_instance_template(
-            resource_id=GCE_INSTANCE_TEMPLATE,
-            project_id=GCP_PROJECT_ID_HOOK_UNIT_TEST)
-        self.assertIsNotNone(res)
+            resource_id=GCE_INSTANCE_TEMPLATE, project_id=GCP_PROJECT_ID_HOOK_UNIT_TEST
+        )
+        assert res is not None
         get_method.assert_called_once_with(instanceTemplate='instance-template', project='example-project')
         execute_method.assert_called_once_with(num_retries=5)
         wait_for_operation_to_complete.assert_not_called()
@@ -378,10 +369,8 @@ class TestGcpComputeHookDefaultProjectId(unittest.TestCase):
         execute_method = get_method.return_value.execute
         execute_method.return_value = {"name": "operation_id"}
         wait_for_operation_to_complete.return_value = None
-        res = self.gce_hook.get_instance_template(
-            project_id='new-project',
-            resource_id=GCE_INSTANCE_TEMPLATE)
-        self.assertIsNotNone(res)
+        res = self.gce_hook.get_instance_template(project_id='new-project', resource_id=GCE_INSTANCE_TEMPLATE)
+        assert res is not None
         get_method.assert_called_once_with(instanceTemplate='instance-template', project='new-project')
         execute_method.assert_called_once_with(num_retries=5)
         wait_for_operation_to_complete.assert_not_called()
@@ -389,7 +378,7 @@ class TestGcpComputeHookDefaultProjectId(unittest.TestCase):
     @mock.patch(
         'airflow.providers.google.common.hooks.base_google.GoogleBaseHook.project_id',
         new_callable=PropertyMock,
-        return_value=GCP_PROJECT_ID_HOOK_UNIT_TEST
+        return_value=GCP_PROJECT_ID_HOOK_UNIT_TEST,
     )
     @mock.patch('airflow.providers.google.cloud.hooks.compute.ComputeEngineHook.get_conn')
     @mock.patch(
@@ -405,11 +394,12 @@ class TestGcpComputeHookDefaultProjectId(unittest.TestCase):
             request_id=GCE_REQUEST_ID,
             project_id=GCP_PROJECT_ID_HOOK_UNIT_TEST,
         )
-        self.assertIsNone(res)
+        assert res is None
         insert_method.assert_called_once_with(body={}, project='example-project', requestId='request_id')
         execute_method.assert_called_once_with(num_retries=5)
-        wait_for_operation_to_complete.assert_called_once_with(project_id='example-project',
-                                                               operation_name='operation_id')
+        wait_for_operation_to_complete.assert_called_once_with(
+            project_id='example-project', operation_name='operation_id'
+        )
 
     @mock.patch('airflow.providers.google.cloud.hooks.compute.ComputeEngineHook.get_conn')
     @mock.patch(
@@ -421,20 +411,19 @@ class TestGcpComputeHookDefaultProjectId(unittest.TestCase):
         execute_method.return_value = {"name": "operation_id"}
         wait_for_operation_to_complete.return_value = None
         res = self.gce_hook.insert_instance_template(
-            project_id='new-project',
-            body={},
-            request_id=GCE_REQUEST_ID
+            project_id='new-project', body={}, request_id=GCE_REQUEST_ID
         )
-        self.assertIsNone(res)
+        assert res is None
         insert_method.assert_called_once_with(body={}, project='new-project', requestId='request_id')
         execute_method.assert_called_once_with(num_retries=5)
-        wait_for_operation_to_complete.assert_called_once_with(project_id='new-project',
-                                                               operation_name='operation_id')
+        wait_for_operation_to_complete.assert_called_once_with(
+            project_id='new-project', operation_name='operation_id'
+        )
 
     @mock.patch(
         'airflow.providers.google.common.hooks.base_google.GoogleBaseHook.project_id',
         new_callable=PropertyMock,
-        return_value=GCP_PROJECT_ID_HOOK_UNIT_TEST
+        return_value=GCP_PROJECT_ID_HOOK_UNIT_TEST,
     )
     @mock.patch('airflow.providers.google.cloud.hooks.compute.ComputeEngineHook.get_conn')
     @mock.patch(
@@ -450,10 +439,10 @@ class TestGcpComputeHookDefaultProjectId(unittest.TestCase):
             resource_id=GCE_INSTANCE_GROUP_MANAGER,
             project_id=GCP_PROJECT_ID_HOOK_UNIT_TEST,
         )
-        self.assertIsNotNone(res)
-        get_method.assert_called_once_with(instanceGroupManager='instance_group_manager',
-                                           project='example-project',
-                                           zone='zone')
+        assert res is not None
+        get_method.assert_called_once_with(
+            instanceGroupManager='instance_group_manager', project='example-project', zone='zone'
+        )
         execute_method.assert_called_once_with(num_retries=5)
         wait_for_operation_to_complete.assert_not_called()
 
@@ -467,21 +456,19 @@ class TestGcpComputeHookDefaultProjectId(unittest.TestCase):
         execute_method.return_value = {"name": "operation_id"}
         wait_for_operation_to_complete.return_value = None
         res = self.gce_hook.get_instance_group_manager(
-            project_id='new-project',
-            zone=GCE_ZONE,
-            resource_id=GCE_INSTANCE_GROUP_MANAGER
+            project_id='new-project', zone=GCE_ZONE, resource_id=GCE_INSTANCE_GROUP_MANAGER
         )
-        self.assertIsNotNone(res)
-        get_method.assert_called_once_with(instanceGroupManager='instance_group_manager',
-                                           project='new-project',
-                                           zone='zone')
+        assert res is not None
+        get_method.assert_called_once_with(
+            instanceGroupManager='instance_group_manager', project='new-project', zone='zone'
+        )
         execute_method.assert_called_once_with(num_retries=5)
         wait_for_operation_to_complete.assert_not_called()
 
     @mock.patch(
         'airflow.providers.google.common.hooks.base_google.GoogleBaseHook.project_id',
         new_callable=PropertyMock,
-        return_value=GCP_PROJECT_ID_HOOK_UNIT_TEST
+        return_value=GCP_PROJECT_ID_HOOK_UNIT_TEST,
     )
     @mock.patch('airflow.providers.google.cloud.hooks.compute.ComputeEngineHook.get_conn')
     @mock.patch(
@@ -499,26 +486,26 @@ class TestGcpComputeHookDefaultProjectId(unittest.TestCase):
             request_id=GCE_REQUEST_ID,
             project_id=GCP_PROJECT_ID_HOOK_UNIT_TEST,
         )
-        self.assertIsNone(res)
+        assert res is None
         patch_method.assert_called_once_with(
             body={},
             instanceGroupManager='instance_group_manager',
             project='example-project',
             requestId='request_id',
-            zone='zone'
+            zone='zone',
         )
         execute_method.assert_called_once_with(num_retries=5)
-        wait_for_operation_to_complete.assert_called_once_with(operation_name='operation_id',
-                                                               project_id='example-project',
-                                                               zone='zone')
+        wait_for_operation_to_complete.assert_called_once_with(
+            operation_name='operation_id', project_id='example-project', zone='zone'
+        )
 
     @mock.patch('airflow.providers.google.cloud.hooks.compute.ComputeEngineHook.get_conn')
     @mock.patch(
         'airflow.providers.google.cloud.hooks.compute.ComputeEngineHook._wait_for_operation_to_complete'
     )
-    def test_patch_instance_group_manager_overridden_project_id(self,
-                                                                wait_for_operation_to_complete,
-                                                                get_conn):
+    def test_patch_instance_group_manager_overridden_project_id(
+        self, wait_for_operation_to_complete, get_conn
+    ):
         patch_method = get_conn.return_value.instanceGroupManagers.return_value.patch
         execute_method = patch_method.return_value.execute
         execute_method.return_value = {"name": "operation_id"}
@@ -528,20 +515,20 @@ class TestGcpComputeHookDefaultProjectId(unittest.TestCase):
             zone=GCE_ZONE,
             resource_id=GCE_INSTANCE_GROUP_MANAGER,
             body={},
-            request_id=GCE_REQUEST_ID
+            request_id=GCE_REQUEST_ID,
         )
-        self.assertIsNone(res)
+        assert res is None
         patch_method.assert_called_once_with(
             body={},
             instanceGroupManager='instance_group_manager',
             project='new-project',
             requestId='request_id',
-            zone='zone'
+            zone='zone',
         )
         execute_method.assert_called_once_with(num_retries=5)
-        wait_for_operation_to_complete.assert_called_once_with(operation_name='operation_id',
-                                                               project_id='new-project',
-                                                               zone='zone')
+        wait_for_operation_to_complete.assert_called_once_with(
+            operation_name='operation_id', project_id='new-project', zone='zone'
+        )
 
     @mock.patch('airflow.providers.google.cloud.hooks.compute.ComputeEngineHook.get_conn')
     @mock.patch(
@@ -556,16 +543,13 @@ class TestGcpComputeHookDefaultProjectId(unittest.TestCase):
         # Test success
         mock_get_conn.return_value = service
         mock_operation_status.return_value = {'status': GceOperationStatus.DONE, 'error': None}
-        self.gce_hook._wait_for_operation_to_complete(project_id=project_id,
-                                                      operation_name=operation_name,
-                                                      zone=None
-                                                      )
+        self.gce_hook._wait_for_operation_to_complete(
+            project_id=project_id, operation_name=operation_name, zone=None
+        )
 
-        mock_operation_status.assert_called_once_with(service=service,
-                                                      operation_name=operation_name,
-                                                      project_id=project_id,
-                                                      num_retries=num_retries
-                                                      )
+        mock_operation_status.assert_called_once_with(
+            service=service, operation_name=operation_name, project_id=project_id, num_retries=num_retries
+        )
 
     @mock.patch('airflow.providers.google.cloud.hooks.compute.ComputeEngineHook.get_conn')
     @mock.patch(
@@ -578,17 +562,17 @@ class TestGcpComputeHookDefaultProjectId(unittest.TestCase):
 
         # Test error
         mock_get_conn.return_value = service
-        mock_operation_status.return_value = {'status': GceOperationStatus.DONE,
-                                              'error': {'errors': "some nasty errors"},
-                                              'httpErrorStatusCode': 400,
-                                              'httpErrorMessage': 'sample msg'
-                                              }
+        mock_operation_status.return_value = {
+            'status': GceOperationStatus.DONE,
+            'error': {'errors': "some nasty errors"},
+            'httpErrorStatusCode': 400,
+            'httpErrorMessage': 'sample msg',
+        }
 
-        with self.assertRaises(AirflowException):
-            self.gce_hook._wait_for_operation_to_complete(project_id=project_id,
-                                                          operation_name=operation_name,
-                                                          zone=None
-                                                          )
+        with pytest.raises(AirflowException):
+            self.gce_hook._wait_for_operation_to_complete(
+                project_id=project_id, operation_name=operation_name, zone=None
+            )
 
     @mock.patch('airflow.providers.google.cloud.hooks.compute.ComputeEngineHook.get_conn')
     @mock.patch('airflow.providers.google.cloud.hooks.compute.ComputeEngineHook._check_zone_operation_status')
@@ -602,9 +586,8 @@ class TestGcpComputeHookDefaultProjectId(unittest.TestCase):
         # Test success
         mock_get_conn.return_value = service
         mock_operation_status.return_value = {'status': GceOperationStatus.DONE, 'error': None}
-        self.gce_hook._wait_for_operation_to_complete(project_id=project_id,
-                                                      operation_name=operation_name,
-                                                      zone=zone
-                                                      )
+        self.gce_hook._wait_for_operation_to_complete(
+            project_id=project_id, operation_name=operation_name, zone=zone
+        )
 
         mock_operation_status.assert_called_once_with(service, operation_name, project_id, zone, num_retries)

@@ -45,6 +45,7 @@ with DAG(
     tags=['example'],
 ) as dag:
 
+    # [START howto_operator_s3_bucket]
     create_bucket = S3CreateBucketOperator(
         task_id='s3_bucket_dag_create',
         bucket_name=BUCKET_NAME,
@@ -52,8 +53,7 @@ with DAG(
     )
 
     add_keys_to_bucket = PythonOperator(
-        task_id="s3_bucket_dag_add_keys_to_bucket",
-        python_callable=upload_keys
+        task_id="s3_bucket_dag_add_keys_to_bucket", python_callable=upload_keys
     )
 
     delete_bucket = S3DeleteBucketOperator(
@@ -61,5 +61,6 @@ with DAG(
         bucket_name=BUCKET_NAME,
         force_delete=True,
     )
+    # [END howto_operator_s3_bucket]
 
     create_bucket >> add_keys_to_bucket >> delete_bucket

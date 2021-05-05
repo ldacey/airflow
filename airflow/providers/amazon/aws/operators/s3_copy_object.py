@@ -15,6 +15,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+from typing import Optional, Union
 
 from airflow.models import BaseOperator
 from airflow.providers.amazon.aws.hooks.s3 import S3Hook
@@ -62,22 +63,27 @@ class S3CopyObjectOperator(BaseOperator):
                  You can specify this argument if you want to use a different
                  CA cert bundle than the one used by botocore.
     :type verify: bool or str
+    :param acl_policy: String specifying the canned ACL policy for the file being
+        uploaded to the S3 bucket.
+    :type acl_policy: str
     """
 
-    template_fields = ('source_bucket_key', 'dest_bucket_key',
-                       'source_bucket_name', 'dest_bucket_name')
+    template_fields = ('source_bucket_key', 'dest_bucket_key', 'source_bucket_name', 'dest_bucket_name')
 
     @apply_defaults
     def __init__(
-            self, *,
-            source_bucket_key,
-            dest_bucket_key,
-            source_bucket_name=None,
-            dest_bucket_name=None,
-            source_version_id=None,
-            aws_conn_id='aws_default',
-            verify=None,
-            **kwargs):
+        self,
+        *,
+        source_bucket_key: str,
+        dest_bucket_key: str,
+        source_bucket_name: Optional[str] = None,
+        dest_bucket_name: Optional[str] = None,
+        source_version_id: Optional[str] = None,
+        aws_conn_id: str = 'aws_default',
+        verify: Optional[Union[str, bool]] = None,
+        acl_policy: Optional[str] = None,
+        **kwargs,
+    ):
         super().__init__(**kwargs)
 
         self.source_bucket_key = source_bucket_key
@@ -87,9 +93,15 @@ class S3CopyObjectOperator(BaseOperator):
         self.source_version_id = source_version_id
         self.aws_conn_id = aws_conn_id
         self.verify = verify
+        self.acl_policy = acl_policy
 
     def execute(self, context):
         s3_hook = S3Hook(aws_conn_id=self.aws_conn_id, verify=self.verify)
-        s3_hook.copy_object(self.source_bucket_key, self.dest_bucket_key,
-                            self.source_bucket_name, self.dest_bucket_name,
-                            self.source_version_id)
+        s3_hook.copy_object(
+            self.source_bucket_key,
+            self.dest_bucket_key,
+            self.source_bucket_name,
+            self.dest_bucket_name,
+            self.source_version_id,
+            self.acl_policy,
+        )

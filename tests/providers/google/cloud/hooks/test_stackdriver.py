@@ -18,11 +18,11 @@
 
 import json
 import unittest
+from unittest import mock
 
-import mock
 from google.api_core.gapic_v1.method import DEFAULT
-from google.cloud import monitoring_v3
-from google.protobuf.json_format import ParseDict
+from google.cloud.monitoring_v3 import AlertPolicy, NotificationChannel
+from google.protobuf.field_mask_pb2 import FieldMask
 
 from airflow.providers.google.cloud.hooks import stackdriver
 
@@ -32,82 +32,58 @@ TEST_FILTER = "filter"
 TEST_ALERT_POLICY_1 = {
     "combiner": "OR",
     "name": "projects/sd-project/alertPolicies/12345",
-    "creationRecord": {
-        "mutatedBy": "user123",
-        "mutateTime": "2020-01-01T00:00:00.000000Z"
-    },
     "enabled": True,
-    "displayName": "test display",
+    "display_name": "test display",
     "conditions": [
         {
-            "conditionThreshold": {
+            "condition_threshold": {
                 "comparison": "COMPARISON_GT",
-                "aggregations": [
-                    {
-                        "alignmentPeriod": "60s",
-                        "perSeriesAligner": "ALIGN_RATE"
-                    }
-                ]
+                "aggregations": [{"alignment_period": {'seconds': 60}, "per_series_aligner": "ALIGN_RATE"}],
             },
-            "displayName": "Condition display",
-            "name": "projects/sd-project/alertPolicies/123/conditions/456"
+            "display_name": "Condition display",
+            "name": "projects/sd-project/alertPolicies/123/conditions/456",
         }
-    ]
+    ],
 }
 
 TEST_ALERT_POLICY_2 = {
     "combiner": "OR",
     "name": "projects/sd-project/alertPolicies/6789",
-    "creationRecord": {
-        "mutatedBy": "user123",
-        "mutateTime": "2020-01-01T00:00:00.000000Z"
-    },
     "enabled": False,
-    "displayName": "test display",
+    "display_name": "test display",
     "conditions": [
         {
-            "conditionThreshold": {
+            "condition_threshold": {
                 "comparison": "COMPARISON_GT",
-                "aggregations": [
-                    {
-                        "alignmentPeriod": "60s",
-                        "perSeriesAligner": "ALIGN_RATE"
-                    }
-                ]
+                "aggregations": [{"alignment_period": {'seconds': 60}, "per_series_aligner": "ALIGN_RATE"}],
             },
-            "displayName": "Condition display",
-            "name": "projects/sd-project/alertPolicies/456/conditions/789"
+            "display_name": "Condition display",
+            "name": "projects/sd-project/alertPolicies/456/conditions/789",
         }
-    ]
+    ],
 }
 
 TEST_NOTIFICATION_CHANNEL_1 = {
-    "displayName": "sd",
+    "display_name": "sd",
     "enabled": True,
-    "labels": {
-        "auth_token": "top-secret",
-        "channel_name": "#channel"
-    },
+    "labels": {"auth_token": "top-secret", "channel_name": "#channel"},
     "name": "projects/sd-project/notificationChannels/12345",
-    "type": "slack"
+    "type_": "slack",
 }
 
 TEST_NOTIFICATION_CHANNEL_2 = {
-    "displayName": "sd",
+    "display_name": "sd",
     "enabled": False,
-    "labels": {
-        "auth_token": "top-secret",
-        "channel_name": "#channel"
-    },
+    "labels": {"auth_token": "top-secret", "channel_name": "#channel"},
     "name": "projects/sd-project/notificationChannels/6789",
-    "type": "slack"
+    "type_": "slack",
 }
 
 
 class TestStackdriverHookMethods(unittest.TestCase):
     @mock.patch(
         'airflow.providers.google.common.hooks.base_google.GoogleBaseHook._get_credentials_and_project_id',
-        return_value=(CREDENTIALS, PROJECT_ID)
+        return_value=(CREDENTIALS, PROJECT_ID),
     )
     @mock.patch('airflow.providers.google.cloud.hooks.stackdriver.StackdriverHook._get_policy_client')
     def test_stackdriver_list_alert_policies(self, mock_policy_client, mock_get_creds_and_project_id):
@@ -118,25 +94,22 @@ class TestStackdriverHookMethods(unittest.TestCase):
             project_id=PROJECT_ID,
         )
         method.assert_called_once_with(
-            name='projects/{project}'.format(project=PROJECT_ID),
-            filter_=TEST_FILTER,
+            request=dict(name=f'projects/{PROJECT_ID}', filter=TEST_FILTER, order_by=None, page_size=None),
             retry=DEFAULT,
             timeout=DEFAULT,
-            order_by=None,
-            page_size=None,
-            metadata=None
+            metadata=(),
         )
 
     @mock.patch(
         'airflow.providers.google.common.hooks.base_google.GoogleBaseHook._get_credentials_and_project_id',
-        return_value=(CREDENTIALS, PROJECT_ID)
+        return_value=(CREDENTIALS, PROJECT_ID),
     )
     @mock.patch('airflow.providers.google.cloud.hooks.stackdriver.StackdriverHook._get_policy_client')
     def test_stackdriver_enable_alert_policy(self, mock_policy_client, mock_get_creds_and_project_id):
         hook = stackdriver.StackdriverHook()
 
-        alert_policy_enabled = ParseDict(TEST_ALERT_POLICY_1, monitoring_v3.types.alert_pb2.AlertPolicy())
-        alert_policy_disabled = ParseDict(TEST_ALERT_POLICY_2, monitoring_v3.types.alert_pb2.AlertPolicy())
+        alert_policy_enabled = AlertPolicy(**TEST_ALERT_POLICY_1)
+        alert_policy_disabled = AlertPolicy(**TEST_ALERT_POLICY_2)
 
         alert_policies = [alert_policy_enabled, alert_policy_disabled]
 
@@ -146,23 +119,18 @@ class TestStackdriverHookMethods(unittest.TestCase):
             project_id=PROJECT_ID,
         )
         mock_policy_client.return_value.list_alert_policies.assert_called_once_with(
-            name='projects/{project}'.format(project=PROJECT_ID),
-            filter_=TEST_FILTER,
+            request=dict(name=f'projects/{PROJECT_ID}', filter=TEST_FILTER, order_by=None, page_size=None),
             retry=DEFAULT,
             timeout=DEFAULT,
-            order_by=None,
-            page_size=None,
-            metadata=None,
+            metadata=(),
         )
-        mask = monitoring_v3.types.field_mask_pb2.FieldMask()
-        alert_policy_disabled.enabled.value = True  # pylint: disable=no-member
-        mask.paths.append('enabled')  # pylint: disable=no-member
+        mask = FieldMask(paths=["enabled"])
+        alert_policy_disabled.enabled = True  # pylint: disable=no-member
         mock_policy_client.return_value.update_alert_policy.assert_called_once_with(
-            alert_policy=alert_policy_disabled,
-            update_mask=mask,
+            request=dict(alert_policy=alert_policy_disabled, update_mask=mask),
             retry=DEFAULT,
             timeout=DEFAULT,
-            metadata=None,
+            metadata=(),
         )
 
     @mock.patch(
@@ -172,35 +140,30 @@ class TestStackdriverHookMethods(unittest.TestCase):
     @mock.patch('airflow.providers.google.cloud.hooks.stackdriver.StackdriverHook._get_policy_client')
     def test_stackdriver_disable_alert_policy(self, mock_policy_client, mock_get_creds_and_project_id):
         hook = stackdriver.StackdriverHook()
-        alert_policy_enabled = ParseDict(TEST_ALERT_POLICY_1, monitoring_v3.types.alert_pb2.AlertPolicy())
-        alert_policy_disabled = ParseDict(TEST_ALERT_POLICY_2, monitoring_v3.types.alert_pb2.AlertPolicy())
+        alert_policy_enabled = AlertPolicy(**TEST_ALERT_POLICY_1)
+        alert_policy_disabled = AlertPolicy(**TEST_ALERT_POLICY_2)
 
         mock_policy_client.return_value.list_alert_policies.return_value = [
             alert_policy_enabled,
-            alert_policy_disabled
+            alert_policy_disabled,
         ]
         hook.disable_alert_policies(
             filter_=TEST_FILTER,
             project_id=PROJECT_ID,
         )
         mock_policy_client.return_value.list_alert_policies.assert_called_once_with(
-            name='projects/{project}'.format(project=PROJECT_ID),
-            filter_=TEST_FILTER,
+            request=dict(name=f'projects/{PROJECT_ID}', filter=TEST_FILTER, order_by=None, page_size=None),
             retry=DEFAULT,
             timeout=DEFAULT,
-            order_by=None,
-            page_size=None,
-            metadata=None,
+            metadata=(),
         )
-        mask = monitoring_v3.types.field_mask_pb2.FieldMask()
-        alert_policy_enabled.enabled.value = False  # pylint: disable=no-member
-        mask.paths.append('enabled')  # pylint: disable=no-member
+        mask = FieldMask(paths=["enabled"])
+        alert_policy_enabled.enabled = False  # pylint: disable=no-member
         mock_policy_client.return_value.update_alert_policy.assert_called_once_with(
-            alert_policy=alert_policy_enabled,
-            update_mask=mask,
+            request=dict(alert_policy=alert_policy_enabled, update_mask=mask),
             retry=DEFAULT,
             timeout=DEFAULT,
-            metadata=None,
+            metadata=(),
         )
 
     @mock.patch(
@@ -209,11 +172,12 @@ class TestStackdriverHookMethods(unittest.TestCase):
     )
     @mock.patch('airflow.providers.google.cloud.hooks.stackdriver.StackdriverHook._get_policy_client')
     @mock.patch('airflow.providers.google.cloud.hooks.stackdriver.StackdriverHook._get_channel_client')
-    def test_stackdriver_upsert_alert_policy(self, mock_channel_client, mock_policy_client,
-                                             mock_get_creds_and_project_id):
+    def test_stackdriver_upsert_alert_policy(
+        self, mock_channel_client, mock_policy_client, mock_get_creds_and_project_id
+    ):
         hook = stackdriver.StackdriverHook()
-        existing_alert_policy = ParseDict(TEST_ALERT_POLICY_1, monitoring_v3.types.alert_pb2.AlertPolicy())
-        alert_policy_to_create = ParseDict(TEST_ALERT_POLICY_2, monitoring_v3.types.alert_pb2.AlertPolicy())
+        existing_alert_policy = AlertPolicy(**TEST_ALERT_POLICY_1)
+        alert_policy_to_create = AlertPolicy(**TEST_ALERT_POLICY_2)
 
         mock_policy_client.return_value.list_alert_policies.return_value = [existing_alert_policy]
         mock_channel_client.return_value.list_notification_channels.return_value = []
@@ -223,41 +187,78 @@ class TestStackdriverHookMethods(unittest.TestCase):
             project_id=PROJECT_ID,
         )
         mock_channel_client.return_value.list_notification_channels.assert_called_once_with(
-            name='projects/{project}'.format(project=PROJECT_ID),
-            filter_=None,
+            request=dict(
+                name=f'projects/{PROJECT_ID}',
+                filter=None,
+                order_by=None,
+                page_size=None,
+            ),
             retry=DEFAULT,
             timeout=DEFAULT,
-            order_by=None,
-            page_size=None,
-            metadata=None,
+            metadata=(),
         )
         mock_policy_client.return_value.list_alert_policies.assert_called_once_with(
-            name='projects/{project}'.format(project=PROJECT_ID),
-            filter_=None,
+            request=dict(name=f'projects/{PROJECT_ID}', filter=None, order_by=None, page_size=None),
             retry=DEFAULT,
             timeout=DEFAULT,
-            order_by=None,
-            page_size=None,
-            metadata=None,
+            metadata=(),
         )
-        alert_policy_to_create.ClearField('name')
-        alert_policy_to_create.ClearField('creation_record')
-        alert_policy_to_create.ClearField('mutation_record')
-        alert_policy_to_create.conditions[0].ClearField('name')  # pylint: disable=no-member
+        alert_policy_to_create.name = None
+        alert_policy_to_create.creation_record = None
+        alert_policy_to_create.mutation_record = None
+        # pylint: disable=unsubscriptable-object
+        alert_policy_to_create.conditions[0].name = None
         mock_policy_client.return_value.create_alert_policy.assert_called_once_with(
-            name='projects/{project}'.format(project=PROJECT_ID),
-            alert_policy=alert_policy_to_create,
+            request=dict(
+                name=f'projects/{PROJECT_ID}',
+                alert_policy=alert_policy_to_create,
+            ),
             retry=DEFAULT,
             timeout=DEFAULT,
-            metadata=None,
+            metadata=(),
         )
-        existing_alert_policy.ClearField('creation_record')
-        existing_alert_policy.ClearField('mutation_record')
+        existing_alert_policy.creation_record = None
+        existing_alert_policy.mutation_record = None
         mock_policy_client.return_value.update_alert_policy.assert_called_once_with(
-            alert_policy=existing_alert_policy,
+            request=dict(alert_policy=existing_alert_policy), retry=DEFAULT, timeout=DEFAULT, metadata=()
+        )
+
+    @mock.patch(
+        'airflow.providers.google.common.hooks.base_google.GoogleBaseHook._get_credentials_and_project_id',
+        return_value=(CREDENTIALS, PROJECT_ID),
+    )
+    @mock.patch('airflow.providers.google.cloud.hooks.stackdriver.StackdriverHook._get_policy_client')
+    @mock.patch('airflow.providers.google.cloud.hooks.stackdriver.StackdriverHook._get_channel_client')
+    def test_stackdriver_upsert_alert_policy_without_channel(
+        self, mock_channel_client, mock_policy_client, mock_get_creds_and_project_id
+    ):
+        hook = stackdriver.StackdriverHook()
+        existing_alert_policy = AlertPolicy(**TEST_ALERT_POLICY_1)
+
+        mock_policy_client.return_value.list_alert_policies.return_value = [existing_alert_policy]
+        mock_channel_client.return_value.list_notification_channels.return_value = []
+
+        hook.upsert_alert(
+            alerts=json.dumps({"policies": [TEST_ALERT_POLICY_1, TEST_ALERT_POLICY_2]}),
+            project_id=PROJECT_ID,
+        )
+        mock_channel_client.return_value.list_notification_channels.assert_called_once_with(
+            request=dict(name=f'projects/{PROJECT_ID}', filter=None, order_by=None, page_size=None),
+            metadata=(),
             retry=DEFAULT,
             timeout=DEFAULT,
-            metadata=None
+        )
+        mock_policy_client.return_value.list_alert_policies.assert_called_once_with(
+            request=dict(name=f'projects/{PROJECT_ID}', filter=None, order_by=None, page_size=None),
+            retry=DEFAULT,
+            timeout=DEFAULT,
+            metadata=(),
+        )
+
+        existing_alert_policy.creation_record = None
+        existing_alert_policy.mutation_record = None
+        mock_policy_client.return_value.update_alert_policy.assert_called_once_with(
+            request=dict(alert_policy=existing_alert_policy), retry=DEFAULT, timeout=DEFAULT, metadata=()
         )
 
     @mock.patch(
@@ -271,10 +272,10 @@ class TestStackdriverHookMethods(unittest.TestCase):
             name='test-alert',
         )
         mock_policy_client.return_value.delete_alert_policy.assert_called_once_with(
-            name='test-alert',
+            request=dict(name='test-alert'),
             retry=DEFAULT,
             timeout=DEFAULT,
-            metadata=None,
+            metadata=(),
         )
 
     @mock.patch(
@@ -289,30 +290,27 @@ class TestStackdriverHookMethods(unittest.TestCase):
             project_id=PROJECT_ID,
         )
         mock_channel_client.return_value.list_notification_channels.assert_called_once_with(
-            name='projects/{project}'.format(project=PROJECT_ID),
-            filter_=TEST_FILTER,
-            order_by=None,
-            page_size=None,
+            request=dict(name=f'projects/{PROJECT_ID}', filter=TEST_FILTER, order_by=None, page_size=None),
             retry=DEFAULT,
             timeout=DEFAULT,
-            metadata=None
+            metadata=(),
         )
 
     @mock.patch(
         'airflow.providers.google.common.hooks.base_google.GoogleBaseHook._get_credentials_and_project_id',
-        return_value=(CREDENTIALS, PROJECT_ID)
+        return_value=(CREDENTIALS, PROJECT_ID),
     )
     @mock.patch('airflow.providers.google.cloud.hooks.stackdriver.StackdriverHook._get_channel_client')
-    def test_stackdriver_enable_notification_channel(self, mock_channel_client,
-                                                     mock_get_creds_and_project_id):
+    def test_stackdriver_enable_notification_channel(
+        self, mock_channel_client, mock_get_creds_and_project_id
+    ):
         hook = stackdriver.StackdriverHook()
-        notification_channel_enabled = ParseDict(TEST_NOTIFICATION_CHANNEL_1,
-                                                 monitoring_v3.types.notification_pb2.NotificationChannel())
-        notification_channel_disabled = ParseDict(TEST_NOTIFICATION_CHANNEL_2,
-                                                  monitoring_v3.types.notification_pb2.NotificationChannel())
+        notification_channel_enabled = NotificationChannel(**TEST_NOTIFICATION_CHANNEL_1)
+        notification_channel_disabled = NotificationChannel(**TEST_NOTIFICATION_CHANNEL_2)
+
         mock_channel_client.return_value.list_notification_channels.return_value = [
             notification_channel_enabled,
-            notification_channel_disabled
+            notification_channel_disabled,
         ]
 
         hook.enable_notification_channels(
@@ -320,32 +318,29 @@ class TestStackdriverHookMethods(unittest.TestCase):
             project_id=PROJECT_ID,
         )
 
-        notification_channel_disabled.enabled.value = True  # pylint: disable=no-member
-        mask = monitoring_v3.types.field_mask_pb2.FieldMask()
-        mask.paths.append('enabled')  # pylint: disable=no-member
+        notification_channel_disabled.enabled = True  # pylint: disable=no-member
+        mask = FieldMask(paths=['enabled'])
         mock_channel_client.return_value.update_notification_channel.assert_called_once_with(
-            notification_channel=notification_channel_disabled,
-            update_mask=mask,
+            request=dict(notification_channel=notification_channel_disabled, update_mask=mask),
             retry=DEFAULT,
             timeout=DEFAULT,
-            metadata=None,
+            metadata=(),
         )
 
     @mock.patch(
         'airflow.providers.google.common.hooks.base_google.GoogleBaseHook._get_credentials_and_project_id',
-        return_value=(CREDENTIALS, PROJECT_ID)
+        return_value=(CREDENTIALS, PROJECT_ID),
     )
     @mock.patch('airflow.providers.google.cloud.hooks.stackdriver.StackdriverHook._get_channel_client')
-    def test_stackdriver_disable_notification_channel(self, mock_channel_client,
-                                                      mock_get_creds_and_project_id):
+    def test_stackdriver_disable_notification_channel(
+        self, mock_channel_client, mock_get_creds_and_project_id
+    ):
         hook = stackdriver.StackdriverHook()
-        notification_channel_enabled = ParseDict(TEST_NOTIFICATION_CHANNEL_1,
-                                                 monitoring_v3.types.notification_pb2.NotificationChannel())
-        notification_channel_disabled = ParseDict(TEST_NOTIFICATION_CHANNEL_2,
-                                                  monitoring_v3.types.notification_pb2.NotificationChannel())
+        notification_channel_enabled = NotificationChannel(**TEST_NOTIFICATION_CHANNEL_1)
+        notification_channel_disabled = NotificationChannel(**TEST_NOTIFICATION_CHANNEL_2)
         mock_channel_client.return_value.list_notification_channels.return_value = [
             notification_channel_enabled,
-            notification_channel_disabled
+            notification_channel_disabled,
         ]
 
         hook.disable_notification_channels(
@@ -353,30 +348,25 @@ class TestStackdriverHookMethods(unittest.TestCase):
             project_id=PROJECT_ID,
         )
 
-        notification_channel_enabled.enabled.value = False  # pylint: disable=no-member
-        mask = monitoring_v3.types.field_mask_pb2.FieldMask()
-        mask.paths.append('enabled')  # pylint: disable=no-member
+        notification_channel_enabled.enabled = False  # pylint: disable=no-member
+        mask = FieldMask(paths=['enabled'])
         mock_channel_client.return_value.update_notification_channel.assert_called_once_with(
-            notification_channel=notification_channel_enabled,
-            update_mask=mask,
+            request=dict(notification_channel=notification_channel_enabled, update_mask=mask),
             retry=DEFAULT,
             timeout=DEFAULT,
-            metadata=None,
+            metadata=(),
         )
 
     @mock.patch(
         'airflow.providers.google.common.hooks.base_google.GoogleBaseHook._get_credentials_and_project_id',
-        return_value=(CREDENTIALS, PROJECT_ID)
+        return_value=(CREDENTIALS, PROJECT_ID),
     )
     @mock.patch('airflow.providers.google.cloud.hooks.stackdriver.StackdriverHook._get_channel_client')
     def test_stackdriver_upsert_channel(self, mock_channel_client, mock_get_creds_and_project_id):
         hook = stackdriver.StackdriverHook()
-        existing_notification_channel = ParseDict(TEST_NOTIFICATION_CHANNEL_1,
-                                                  monitoring_v3.types.notification_pb2.NotificationChannel())
-        notification_channel_to_be_created = ParseDict(
-            TEST_NOTIFICATION_CHANNEL_2,
-            monitoring_v3.types.notification_pb2.NotificationChannel()
-        )
+        existing_notification_channel = NotificationChannel(**TEST_NOTIFICATION_CHANNEL_1)
+        notification_channel_to_be_created = NotificationChannel(**TEST_NOTIFICATION_CHANNEL_2)
+
         mock_channel_client.return_value.list_notification_channels.return_value = [
             existing_notification_channel
         ]
@@ -385,43 +375,39 @@ class TestStackdriverHookMethods(unittest.TestCase):
             project_id=PROJECT_ID,
         )
         mock_channel_client.return_value.list_notification_channels.assert_called_once_with(
-            name='projects/{project}'.format(project=PROJECT_ID),
-            filter_=None,
-            order_by=None,
-            page_size=None,
+            request=dict(name=f'projects/{PROJECT_ID}', filter=None, order_by=None, page_size=None),
             retry=DEFAULT,
             timeout=DEFAULT,
-            metadata=None,
+            metadata=(),
         )
         mock_channel_client.return_value.update_notification_channel.assert_called_once_with(
-            notification_channel=existing_notification_channel,
+            request=dict(notification_channel=existing_notification_channel),
             retry=DEFAULT,
             timeout=DEFAULT,
-            metadata=None
+            metadata=(),
         )
-        notification_channel_to_be_created.ClearField('name')
+        notification_channel_to_be_created.name = None
         mock_channel_client.return_value.create_notification_channel.assert_called_once_with(
-            name='projects/{project}'.format(project=PROJECT_ID),
-            notification_channel=notification_channel_to_be_created,
+            request=dict(
+                name=f'projects/{PROJECT_ID}', notification_channel=notification_channel_to_be_created
+            ),
             retry=DEFAULT,
             timeout=DEFAULT,
-            metadata=None
+            metadata=(),
         )
 
     @mock.patch(
         'airflow.providers.google.common.hooks.base_google.GoogleBaseHook._get_credentials_and_project_id',
-        return_value=(CREDENTIALS, PROJECT_ID)
+        return_value=(CREDENTIALS, PROJECT_ID),
     )
     @mock.patch('airflow.providers.google.cloud.hooks.stackdriver.StackdriverHook._get_channel_client')
-    def test_stackdriver_delete_notification_channel(self, mock_channel_client,
-                                                     mock_get_creds_and_project_id):
+    def test_stackdriver_delete_notification_channel(
+        self, mock_channel_client, mock_get_creds_and_project_id
+    ):
         hook = stackdriver.StackdriverHook()
         hook.delete_notification_channel(
             name='test-channel',
         )
         mock_channel_client.return_value.delete_notification_channel.assert_called_once_with(
-            name='test-channel',
-            retry=DEFAULT,
-            timeout=DEFAULT,
-            metadata=None
+            request=dict(name='test-channel'), retry=DEFAULT, timeout=DEFAULT, metadata=()
         )

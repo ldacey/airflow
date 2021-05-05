@@ -15,7 +15,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""This module is deprecated. Please use `airflow.providers.amazon.aws.operators.s3_copy_object`."""
+"""This module is deprecated. Please use :mod:`airflow.providers.amazon.aws.operators.s3_copy_object`."""
 
 import warnings
 
@@ -24,5 +24,6 @@ from airflow.providers.amazon.aws.operators.s3_copy_object import S3CopyObjectOp
 
 warnings.warn(
     "This module is deprecated. Please use `airflow.providers.amazon.aws.operators.s3_copy_object`.",
-    DeprecationWarning, stacklevel=2
+    DeprecationWarning,
+    stacklevel=2,
 )

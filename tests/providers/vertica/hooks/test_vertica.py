@@ -26,7 +26,6 @@ from airflow.providers.vertica.hooks.vertica import VerticaHook
 
 
 class TestVerticaHookConn(unittest.TestCase):
-
     def setUp(self):
         super().setUp()
 
@@ -47,13 +46,12 @@ class TestVerticaHookConn(unittest.TestCase):
     @patch('airflow.providers.vertica.hooks.vertica.connect')
     def test_get_conn(self, mock_connect):
         self.db_hook.get_conn()
-        mock_connect.assert_called_once_with(host='host', port=5433,
-                                             database='vertica', user='login',
-                                             password="password")
+        mock_connect.assert_called_once_with(
+            host='host', port=5433, database='vertica', user='login', password="password"
+        )
 
 
 class TestVerticaHook(unittest.TestCase):
-
     def setUp(self):
         super().setUp()
 
@@ -70,11 +68,10 @@ class TestVerticaHook(unittest.TestCase):
 
         self.db_hook = UnitTestVerticaHook()
 
-    @patch('airflow.hooks.dbapi_hook.DbApiHook.insert_rows')
+    @patch('airflow.hooks.dbapi.DbApiHook.insert_rows')
     def test_insert_rows(self, mock_insert_rows):
         table = "table"
-        rows = [("hello",),
-                ("world",)]
+        rows = [("hello",), ("world",)]
         target_fields = None
         commit_every = 10
         self.db_hook.insert_rows(table, rows, target_fields, commit_every)
@@ -85,7 +82,7 @@ class TestVerticaHook(unittest.TestCase):
         result_sets = [('row1',), ('row2',)]
         self.cur.fetchone.return_value = result_sets[0]
 
-        self.assertEqual(result_sets[0], self.db_hook.get_first(statement))
+        assert result_sets[0] == self.db_hook.get_first(statement)
         self.conn.close.assert_called_once_with()
         self.cur.close.assert_called_once_with()
         self.cur.execute.assert_called_once_with(statement)
@@ -95,7 +92,7 @@ class TestVerticaHook(unittest.TestCase):
         result_sets = [('row1',), ('row2',)]
         self.cur.fetchall.return_value = result_sets
 
-        self.assertEqual(result_sets, self.db_hook.get_records(statement))
+        assert result_sets == self.db_hook.get_records(statement)
         self.conn.close.assert_called_once_with()
         self.cur.close.assert_called_once_with()
         self.cur.execute.assert_called_once_with(statement)
@@ -108,7 +105,7 @@ class TestVerticaHook(unittest.TestCase):
         self.cur.fetchall.return_value = result_sets
         df = self.db_hook.get_pandas_df(statement)
 
-        self.assertEqual(column, df.columns[0])
+        assert column == df.columns[0]
 
-        self.assertEqual(result_sets[0][0], df.values.tolist()[0][0])
-        self.assertEqual(result_sets[1][0], df.values.tolist()[1][0])
+        assert result_sets[0][0] == df.values.tolist()[0][0]
+        assert result_sets[1][0] == df.values.tolist()[1][0]

@@ -29,9 +29,7 @@ DEFAULT_DATE = timezone.datetime(2017, 1, 1)
 class TestSparkJDBCOperator(unittest.TestCase):
     _config = {
         'spark_app_name': '{{ task_instance.task_id }}',
-        'spark_conf': {
-            'parquet.compression': 'SNAPPY'
-        },
+        'spark_conf': {'parquet.compression': 'SNAPPY'},
         'spark_files': 'hive-site.xml',
         'spark_py_files': 'sample_library.py',
         'spark_jars': 'parquet.jar',
@@ -56,14 +54,11 @@ class TestSparkJDBCOperator(unittest.TestCase):
         'lower_bound': '10',
         'upper_bound': '20',
         'create_table_column_types': 'columnMcColumnFace INTEGER(100), name CHAR(64),'
-                                     'comments VARCHAR(1024)'
+        'comments VARCHAR(1024)',
     }
 
     def setUp(self):
-        args = {
-            'owner': 'airflow',
-            'start_date': DEFAULT_DATE
-        }
+        args = {'owner': 'airflow', 'start_date': DEFAULT_DATE}
         self.dag = DAG('test_dag_id', default_args=args)
 
     def test_execute(self):
@@ -71,18 +66,12 @@ class TestSparkJDBCOperator(unittest.TestCase):
         spark_conn_id = 'spark-default'
         jdbc_conn_id = 'jdbc-default'
 
-        operator = SparkJDBCOperator(
-            task_id='spark_jdbc_job',
-            dag=self.dag,
-            **self._config
-        )
+        operator = SparkJDBCOperator(task_id='spark_jdbc_job', dag=self.dag, **self._config)
 
         # Then
         expected_dict = {
             'spark_app_name': '{{ task_instance.task_id }}',
-            'spark_conf': {
-                'parquet.compression': 'SNAPPY'
-            },
+            'spark_conf': {'parquet.compression': 'SNAPPY'},
             'spark_files': 'hive-site.xml',
             'spark_py_files': 'sample_library.py',
             'spark_jars': 'parquet.jar',
@@ -107,35 +96,34 @@ class TestSparkJDBCOperator(unittest.TestCase):
             'lower_bound': '10',
             'upper_bound': '20',
             'create_table_column_types': 'columnMcColumnFace INTEGER(100), name CHAR(64),'
-                                         'comments VARCHAR(1024)'
+            'comments VARCHAR(1024)',
         }
 
-        self.assertEqual(spark_conn_id, operator._spark_conn_id)
-        self.assertEqual(jdbc_conn_id, operator._jdbc_conn_id)
-        self.assertEqual(expected_dict['spark_app_name'], operator._spark_app_name)
-        self.assertEqual(expected_dict['spark_conf'], operator._spark_conf)
-        self.assertEqual(expected_dict['spark_files'], operator._spark_files)
-        self.assertEqual(expected_dict['spark_py_files'], operator._spark_py_files)
-        self.assertEqual(expected_dict['spark_jars'], operator._spark_jars)
-        self.assertEqual(expected_dict['num_executors'], operator._num_executors)
-        self.assertEqual(expected_dict['executor_cores'], operator._executor_cores)
-        self.assertEqual(expected_dict['executor_memory'], operator._executor_memory)
-        self.assertEqual(expected_dict['driver_memory'], operator._driver_memory)
-        self.assertEqual(expected_dict['verbose'], operator._verbose)
-        self.assertEqual(expected_dict['keytab'], operator._keytab)
-        self.assertEqual(expected_dict['principal'], operator._principal)
-        self.assertEqual(expected_dict['cmd_type'], operator._cmd_type)
-        self.assertEqual(expected_dict['jdbc_table'], operator._jdbc_table)
-        self.assertEqual(expected_dict['jdbc_driver'], operator._jdbc_driver)
-        self.assertEqual(expected_dict['metastore_table'], operator._metastore_table)
-        self.assertEqual(expected_dict['jdbc_truncate'], operator._jdbc_truncate)
-        self.assertEqual(expected_dict['save_mode'], operator._save_mode)
-        self.assertEqual(expected_dict['save_format'], operator._save_format)
-        self.assertEqual(expected_dict['batch_size'], operator._batch_size)
-        self.assertEqual(expected_dict['fetch_size'], operator._fetch_size)
-        self.assertEqual(expected_dict['num_partitions'], operator._num_partitions)
-        self.assertEqual(expected_dict['partition_column'], operator._partition_column)
-        self.assertEqual(expected_dict['lower_bound'], operator._lower_bound)
-        self.assertEqual(expected_dict['upper_bound'], operator._upper_bound)
-        self.assertEqual(expected_dict['create_table_column_types'],
-                         operator._create_table_column_types)
+        assert spark_conn_id == operator._spark_conn_id
+        assert jdbc_conn_id == operator._jdbc_conn_id
+        assert expected_dict['spark_app_name'] == operator._spark_app_name
+        assert expected_dict['spark_conf'] == operator._spark_conf
+        assert expected_dict['spark_files'] == operator._spark_files
+        assert expected_dict['spark_py_files'] == operator._spark_py_files
+        assert expected_dict['spark_jars'] == operator._spark_jars
+        assert expected_dict['num_executors'] == operator._num_executors
+        assert expected_dict['executor_cores'] == operator._executor_cores
+        assert expected_dict['executor_memory'] == operator._executor_memory
+        assert expected_dict['driver_memory'] == operator._driver_memory
+        assert expected_dict['verbose'] == operator._verbose
+        assert expected_dict['keytab'] == operator._keytab
+        assert expected_dict['principal'] == operator._principal
+        assert expected_dict['cmd_type'] == operator._cmd_type
+        assert expected_dict['jdbc_table'] == operator._jdbc_table
+        assert expected_dict['jdbc_driver'] == operator._jdbc_driver
+        assert expected_dict['metastore_table'] == operator._metastore_table
+        assert expected_dict['jdbc_truncate'] == operator._jdbc_truncate
+        assert expected_dict['save_mode'] == operator._save_mode
+        assert expected_dict['save_format'] == operator._save_format
+        assert expected_dict['batch_size'] == operator._batch_size
+        assert expected_dict['fetch_size'] == operator._fetch_size
+        assert expected_dict['num_partitions'] == operator._num_partitions
+        assert expected_dict['partition_column'] == operator._partition_column
+        assert expected_dict['lower_bound'] == operator._lower_bound
+        assert expected_dict['upper_bound'] == operator._upper_bound
+        assert expected_dict['create_table_column_types'] == operator._create_table_column_types

@@ -14,34 +14,27 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-import unittest
 from unittest import mock
 
-from airflow.www import app
-from tests.test_utils.config import conf_vars
+import pytest
 
 
-class TestGetHealthTest(unittest.TestCase):
-    @classmethod
-    def setUpClass(cls) -> None:
-        super().setUpClass()
-        with conf_vars(
-            {("api", "auth_backend"): "tests.test_utils.remote_user_api_auth_backend"}
-        ):
-            cls.app = app.create_app(testing=True)  # type:ignore
-
-    def setUp(self) -> None:
+class TestGetHealthTest:
+    @pytest.fixture(autouse=True)
+    def setup_attrs(self, minimal_app_for_api) -> None:
+        """
+        Setup For XCom endpoint TC
+        """
+        self.app = minimal_app_for_api
         self.client = self.app.test_client()  # type:ignore
 
-    @mock.patch(
-        "airflow.api_connexion.endpoints.version_endpoint.airflow.__version__", "MOCK_VERSION"
-    )
+    @mock.patch("airflow.api_connexion.endpoints.version_endpoint.airflow.__version__", "MOCK_VERSION")
     @mock.patch(
         "airflow.api_connexion.endpoints.version_endpoint.get_airflow_git_version", return_value="GIT_COMMIT"
     )
-    def test_should_response_200(self, mock_get_airflow_get_commit):
+    def test_should_respond_200(self, mock_get_airflow_get_commit):
         response = self.client.get("/api/v1/version")
 
-        self.assertEqual(200, response.status_code)
-        self.assertEqual({'git_version': 'GIT_COMMIT', 'version': 'MOCK_VERSION'}, response.json)
+        assert 200 == response.status_code
+        assert {'git_version': 'GIT_COMMIT', 'version': 'MOCK_VERSION'} == response.json
         mock_get_airflow_get_commit.assert_called_once_with()

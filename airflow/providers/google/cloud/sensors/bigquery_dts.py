@@ -15,16 +15,14 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""
-This module contains a Google BigQuery Data Transfer Service sensor.
-"""
+"""This module contains a Google BigQuery Data Transfer Service sensor."""
 from typing import Optional, Sequence, Set, Tuple, Union
 
 from google.api_core.retry import Retry
-from google.protobuf.json_format import MessageToDict
+from google.cloud.bigquery_datatransfer_v1 import TransferState
 
 from airflow.providers.google.cloud.hooks.bigquery_dts import BiqQueryDataTransferServiceHook
-from airflow.sensors.base_sensor_operator import BaseSensorOperator
+from airflow.sensors.base import BaseSensorOperator
 from airflow.utils.decorators import apply_defaults
 
 
@@ -45,7 +43,7 @@ class BigQueryDataTransferServiceTransferRunSensor(BaseSensorOperator):
     :param transfer_config_id: ID of transfer config to be used.
     :type transfer_config_id: str
     :param project_id: The BigQuery project id where the transfer configuration should be
-        created. If set to None or missing, the default project_id from the GCP connection is used.
+        created. If set to None or missing, the default project_id from the Google Cloud connection is used.
     :type project_id: str
     :param retry: A retry object used to retry requests. If `None` is
         specified, requests will not be retried.
@@ -56,6 +54,16 @@ class BigQueryDataTransferServiceTransferRunSensor(BaseSensorOperator):
     :type request_timeout: Optional[float]
     :param metadata: Additional metadata that is provided to the method.
     :type metadata: Optional[Sequence[Tuple[str, str]]]
+    :param impersonation_chain: Optional service account to impersonate using short-term
+        credentials, or chained list of accounts required to get the access_token
+        of the last account in the list, which will be impersonated in the request.
+        If set as a string, the account must grant the originating account
+        the Service Account Token Creator IAM role.
+        If set as a sequence, the identities from the list must grant
+        Service Account Token Creator IAM role to the directly preceding identity, with first
+        account from the list granting this role to the originating account (templated).
+    :type impersonation_chain: Union[str, Sequence[str]]
+
     :return: An ``google.cloud.bigquery_datatransfer_v1.types.TransferRun`` instance.
     """
 
@@ -64,6 +72,7 @@ class BigQueryDataTransferServiceTransferRunSensor(BaseSensorOperator):
         "transfer_config_id",
         "expected_statuses",
         "project_id",
+        "impersonation_chain",
     )
 
     @apply_defaults
@@ -72,30 +81,51 @@ class BigQueryDataTransferServiceTransferRunSensor(BaseSensorOperator):
         *,
         run_id: str,
         transfer_config_id: str,
-        expected_statuses: Union[Set[str], str] = 'SUCCEEDED',
+        expected_statuses: Union[
+            Set[Union[str, TransferState, int]], str, TransferState, int
+        ] = TransferState.SUCCEEDED,
         project_id: Optional[str] = None,
         gcp_conn_id: str = "google_cloud_default",
         retry: Optional[Retry] = None,
         request_timeout: Optional[float] = None,
         metadata: Optional[Sequence[Tuple[str, str]]] = None,
-        **kwargs
-    ):
+        impersonation_chain: Optional[Union[str, Sequence[str]]] = None,
+        **kwargs,
+    ) -> None:
         super().__init__(**kwargs)
         self.run_id = run_id
         self.transfer_config_id = transfer_config_id
         self.retry = retry
         self.request_timeout = request_timeout
         self.metadata = metadata
-        self.expected_statuses = (
-            {expected_statuses}
-            if isinstance(expected_statuses, str)
-            else expected_statuses
-        )
+        self.expected_statuses = self._normalize_state_list(expected_statuses)
         self.project_id = project_id
         self.gcp_cloud_conn_id = gcp_conn_id
+        self.impersonation_chain = impersonation_chain
 
-    def poke(self, context):
-        hook = BiqQueryDataTransferServiceHook(gcp_conn_id=self.gcp_cloud_conn_id)
+    def _normalize_state_list(self, states) -> Set[TransferState]:
+        states = {states} if isinstance(states, (str, TransferState, int)) else states
+        result = set()
+        for state in states:
+            if isinstance(state, str):
+                result.add(TransferState[state.upper()])
+            elif isinstance(state, int):
+                result.add(TransferState(state))
+            elif isinstance(state, TransferState):
+                result.add(state)
+            else:
+                raise TypeError(
+                    f"Unsupported type. "
+                    f"Expected: str, int, google.cloud.bigquery_datatransfer_v1.TransferState."
+                    f"Current type: {type(state)}"
+                )
+        return result
+
+    def poke(self, context: dict) -> bool:
+        hook = BiqQueryDataTransferServiceHook(
+            gcp_conn_id=self.gcp_cloud_conn_id,
+            impersonation_chain=self.impersonation_chain,
+        )
         run = hook.get_transfer_run(
             run_id=self.run_id,
             transfer_config_id=self.transfer_config_id,
@@ -104,8 +134,5 @@ class BigQueryDataTransferServiceTransferRunSensor(BaseSensorOperator):
             timeout=self.request_timeout,
             metadata=self.metadata,
         )
-        result = MessageToDict(run)
-        state = result["state"]
-        self.log.info("Status of %s run: %s", self.run_id, state)
-
-        return state in self.expected_statuses
+        self.log.info("Status of %s run: %s", self.run_id, str(run.state))
+        return run.state in self.expected_statuses

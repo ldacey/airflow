@@ -15,7 +15,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-from typing import Optional
+from typing import Dict, Optional
 
 from airflow.models import BaseOperator
 from airflow.providers.mysql.hooks.mysql import MySqlHook
@@ -34,7 +34,7 @@ class PrestoToMySqlOperator(BaseOperator):
     :param mysql_table: target MySQL table, use dot notation to target a
         specific database. (templated)
     :type mysql_table: str
-    :param mysql_conn_id: source mysql connection
+    :param mysql_conn_id: Reference to :ref:`mysql connection id <howto/connection:mysql>`.
     :type mysql_conn_id: str
     :param presto_conn_id: source presto connection
     :type presto_conn_id: str
@@ -47,16 +47,20 @@ class PrestoToMySqlOperator(BaseOperator):
 
     template_fields = ('sql', 'mysql_table', 'mysql_preoperator')
     template_ext = ('.sql',)
+    template_fields_renderers = {"mysql_preoperator": "sql"}
     ui_color = '#a0e08c'
 
     @apply_defaults
-    def __init__(self, *,
-                 sql: str,
-                 mysql_table: str,
-                 presto_conn_id: str = 'presto_default',
-                 mysql_conn_id: str = 'mysql_default',
-                 mysql_preoperator: Optional[str] = None,
-                 **kwargs) -> None:
+    def __init__(
+        self,
+        *,
+        sql: str,
+        mysql_table: str,
+        presto_conn_id: str = 'presto_default',
+        mysql_conn_id: str = 'mysql_default',
+        mysql_preoperator: Optional[str] = None,
+        **kwargs,
+    ) -> None:
         super().__init__(**kwargs)
         self.sql = sql
         self.mysql_table = mysql_table
@@ -64,7 +68,7 @@ class PrestoToMySqlOperator(BaseOperator):
         self.mysql_preoperator = mysql_preoperator
         self.presto_conn_id = presto_conn_id
 
-    def execute(self, context):
+    def execute(self, context: Dict) -> None:
         presto = PrestoHook(presto_conn_id=self.presto_conn_id)
         self.log.info("Extracting data from Presto: %s", self.sql)
         results = presto.get_records(self.sql)

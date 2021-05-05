@@ -16,21 +16,21 @@
 # specific language governing permissions and limitations
 # under the License.
 import json
+import os
 import re
 import unittest
 from collections import namedtuple
 from unittest import mock
 
+import pytest
 import sqlalchemy
 from cryptography.fernet import Fernet
 from parameterized import parameterized
 
 from airflow import AirflowException
-from airflow.hooks.base_hook import BaseHook
+from airflow.hooks.base import BaseHook
 from airflow.models import Connection, crypto
-from airflow.models.connection import CONN_TYPE_TO_HOOK
 from airflow.providers.sqlite.hooks.sqlite import SqliteHook
-from airflow.utils.module_loading import import_string
 from tests.test_utils.config import conf_vars
 
 ConnectionParts = namedtuple("ConnectionParts", ["conn_type", "login", "password", "host", "port", "schema"])
@@ -56,12 +56,16 @@ class UriTestCaseConfig:
 
     @staticmethod
     def uri_test_name(func, num, param):
-        return "{}_{}_{}".format(func.__name__, num, param.args[0].description.replace(' ', '_'))
+        return f"{func.__name__}_{num}_{param.args[0].description.replace(' ', '_')}"
 
 
 class TestConnection(unittest.TestCase):
     def setUp(self):
         crypto._fernet = None
+        patcher = mock.patch('airflow.models.connection.mask_secret', autospec=True)
+        self.mask_secret = patcher.start()
+
+        self.addCleanup(patcher.stop)
 
     def tearDown(self):
         crypto._fernet = None
@@ -74,8 +78,8 @@ class TestConnection(unittest.TestCase):
         encryption.
         """
         test_connection = Connection(extra='testextra')
-        self.assertFalse(test_connection.is_extra_encrypted)
-        self.assertEqual(test_connection.extra, 'testextra')
+        assert not test_connection.is_extra_encrypted
+        assert test_connection.extra == 'testextra'
 
     @conf_vars({('core', 'fernet_key'): Fernet.generate_key().decode()})
     def test_connection_extra_with_encryption(self):
@@ -83,8 +87,8 @@ class TestConnection(unittest.TestCase):
         Tests extras on a new connection with encryption.
         """
         test_connection = Connection(extra='testextra')
-        self.assertTrue(test_connection.is_extra_encrypted)
-        self.assertEqual(test_connection.extra, 'testextra')
+        assert test_connection.is_extra_encrypted
+        assert test_connection.extra == 'testextra'
 
     def test_connection_extra_with_encryption_rotate_fernet_key(self):
         """
@@ -95,20 +99,20 @@ class TestConnection(unittest.TestCase):
 
         with conf_vars({('core', 'fernet_key'): key1.decode()}):
             test_connection = Connection(extra='testextra')
-            self.assertTrue(test_connection.is_extra_encrypted)
-            self.assertEqual(test_connection.extra, 'testextra')
-            self.assertEqual(Fernet(key1).decrypt(test_connection._extra.encode()), b'testextra')
+            assert test_connection.is_extra_encrypted
+            assert test_connection.extra == 'testextra'
+            assert Fernet(key1).decrypt(test_connection._extra.encode()) == b'testextra'
 
         # Test decrypt of old value with new key
         with conf_vars({('core', 'fernet_key'): ','.join([key2.decode(), key1.decode()])}):
             crypto._fernet = None
-            self.assertEqual(test_connection.extra, 'testextra')
+            assert test_connection.extra == 'testextra'
 
             # Test decrypt of new value with new key
             test_connection.rotate_fernet_key()
-            self.assertTrue(test_connection.is_extra_encrypted)
-            self.assertEqual(test_connection.extra, 'testextra')
-            self.assertEqual(Fernet(key2).decrypt(test_connection._extra.encode()), b'testextra')
+            assert test_connection.is_extra_encrypted
+            assert test_connection.extra == 'testextra'
+            assert Fernet(key2).decrypt(test_connection._extra.encode()) == b'testextra'
 
     test_from_uri_params = [
         UriTestCaseConfig(
@@ -126,7 +130,7 @@ class TestConnection(unittest.TestCase):
         ),
         UriTestCaseConfig(
             test_conn_uri='scheme://user:password@host%2Flocation:1234/schema?'
-                          'extra1=a%20value&extra2=%2Fpath%2F',
+            'extra1=a%20value&extra2=%2Fpath%2F',
             test_conn_attributes=dict(
                 conn_type='scheme',
                 host='host/location',
@@ -134,9 +138,64 @@ class TestConnection(unittest.TestCase):
                 login='user',
                 password='password',
                 port=1234,
-                extra_dejson={'extra1': 'a value', 'extra2': '/path/'}
+                extra_dejson={'extra1': 'a value', 'extra2': '/path/'},
             ),
-            description='with extras'
+            description='with extras',
+        ),
+        UriTestCaseConfig(
+            test_conn_uri='scheme://user:password@host%2Flocation:1234/schema?' '__extra__=single+value',
+            test_conn_attributes=dict(
+                conn_type='scheme',
+                host='host/location',
+                schema='schema',
+                login='user',
+                password='password',
+                port=1234,
+                extra='single value',
+            ),
+            description='with extras single value',
+        ),
+        UriTestCaseConfig(
+            test_conn_uri='scheme://user:password@host%2Flocation:1234/schema?'
+            '__extra__=arbitrary+string+%2A%29%2A%24',
+            test_conn_attributes=dict(
+                conn_type='scheme',
+                host='host/location',
+                schema='schema',
+                login='user',
+                password='password',
+                port=1234,
+                extra='arbitrary string *)*$',
+            ),
+            description='with extra non-json',
+        ),
+        UriTestCaseConfig(
+            test_conn_uri='scheme://user:password@host%2Flocation:1234/schema?'
+            '__extra__=%5B%22list%22%2C+%22of%22%2C+%22values%22%5D',
+            test_conn_attributes=dict(
+                conn_type='scheme',
+                host='host/location',
+                schema='schema',
+                login='user',
+                password='password',
+                port=1234,
+                extra_dejson=['list', 'of', 'values'],
+            ),
+            description='with extras list',
+        ),
+        UriTestCaseConfig(
+            test_conn_uri='scheme://user:password@host%2Flocation:1234/schema?'
+            '__extra__=%7B%22my_val%22%3A+%5B%22list%22%2C+%22of%22%2C+%22values%22%5D%2C+%22extra%22%3A+%7B%22nested%22%3A+%7B%22json%22%3A+%22val%22%7D%7D%7D',  # noqa: E501 # pylint: disable=C0301
+            test_conn_attributes=dict(
+                conn_type='scheme',
+                host='host/location',
+                schema='schema',
+                login='user',
+                password='password',
+                port=1234,
+                extra_dejson={'my_val': ['list', 'of', 'values'], 'extra': {'nested': {'json': 'val'}}},
+            ),
+            description='with nested json',
         ),
         UriTestCaseConfig(
             test_conn_uri='scheme://user:password@host%2Flocation:1234/schema?extra1=a%20value&extra2=',
@@ -147,13 +206,13 @@ class TestConnection(unittest.TestCase):
                 login='user',
                 password='password',
                 port=1234,
-                extra_dejson={'extra1': 'a value', 'extra2': ''}
+                extra_dejson={'extra1': 'a value', 'extra2': ''},
             ),
-            description='with empty extras'
+            description='with empty extras',
         ),
         UriTestCaseConfig(
             test_conn_uri='scheme://user:password@host%2Flocation%3Ax%3Ay:1234/schema?'
-                          'extra1=a%20value&extra2=%2Fpath%2F',
+            'extra1=a%20value&extra2=%2Fpath%2F',
             test_conn_attributes=dict(
                 conn_type='scheme',
                 host='host/location:x:y',
@@ -163,7 +222,7 @@ class TestConnection(unittest.TestCase):
                 port=1234,
                 extra_dejson={'extra1': 'a value', 'extra2': '/path/'},
             ),
-            description='with colon in hostname'
+            description='with colon in hostname',
         ),
         UriTestCaseConfig(
             test_conn_uri='scheme://user:password%20with%20space@host%2Flocation%3Ax%3Ay:1234/schema',
@@ -175,7 +234,7 @@ class TestConnection(unittest.TestCase):
                 password='password with space',
                 port=1234,
             ),
-            description='with encoded password'
+            description='with encoded password',
         ),
         UriTestCaseConfig(
             test_conn_uri='scheme://domain%2Fuser:password@host%2Flocation%3Ax%3Ay:1234/schema',
@@ -199,7 +258,7 @@ class TestConnection(unittest.TestCase):
                 password='password with space',
                 port=1234,
             ),
-            description='with encoded schema'
+            description='with encoded schema',
         ),
         UriTestCaseConfig(
             test_conn_uri='scheme://user:password%20with%20space@host:1234',
@@ -211,7 +270,7 @@ class TestConnection(unittest.TestCase):
                 password='password with space',
                 port=1234,
             ),
-            description='no schema'
+            description='no schema',
         ),
         UriTestCaseConfig(
             test_conn_uri='google-cloud-platform://?extra__google_cloud_platform__key_'
@@ -229,7 +288,7 @@ class TestConnection(unittest.TestCase):
                     extra__google_cloud_platform__key_path='/keys/key.json',
                     extra__google_cloud_platform__scope='https://www.googleapis.com/auth/cloud-platform',
                     extra__google_cloud_platform__project='airflow',
-                )
+                ),
             ),
             description='with underscore',
         ),
@@ -243,7 +302,7 @@ class TestConnection(unittest.TestCase):
                 password=None,
                 port=1234,
             ),
-            description='without auth info'
+            description='without auth info',
         ),
         UriTestCaseConfig(
             test_conn_uri='scheme://%2FTmP%2F:1234',
@@ -299,11 +358,20 @@ class TestConnection(unittest.TestCase):
         for conn_attr, expected_val in test_config.test_conn_attributes.items():
             actual_val = getattr(connection, conn_attr)
             if expected_val is None:
-                self.assertIsNone(expected_val)
+                assert expected_val is None
             if isinstance(expected_val, dict):
-                self.assertDictEqual(expected_val, actual_val)
+                assert expected_val == actual_val
             else:
-                self.assertEqual(expected_val, actual_val)
+                assert expected_val == actual_val
+
+        expected_calls = []
+        if test_config.test_conn_attributes.get('password'):
+            expected_calls.append(mock.call(test_config.test_conn_attributes['password']))
+
+        if test_config.test_conn_attributes.get('extra_dejson'):
+            expected_calls.append(mock.call(test_config.test_conn_attributes['extra_dejson']))
+
+        self.mask_secret.assert_has_calls(expected_calls)
 
     # pylint: disable=undefined-variable
     @parameterized.expand([(x,) for x in test_from_uri_params], UriTestCaseConfig.uri_test_name)
@@ -319,13 +387,13 @@ class TestConnection(unittest.TestCase):
         connection = Connection(uri=test_config.test_uri)
         generated_uri = connection.get_uri()
         new_conn = Connection(uri=generated_uri)
-        self.assertEqual(connection.conn_type, new_conn.conn_type)
-        self.assertEqual(connection.login, new_conn.login)
-        self.assertEqual(connection.password, new_conn.password)
-        self.assertEqual(connection.host, new_conn.host)
-        self.assertEqual(connection.port, new_conn.port)
-        self.assertEqual(connection.schema, new_conn.schema)
-        self.assertDictEqual(connection.extra_dejson, new_conn.extra_dejson)
+        assert connection.conn_type == new_conn.conn_type
+        assert connection.login == new_conn.login
+        assert connection.password == new_conn.password
+        assert connection.host == new_conn.host
+        assert connection.port == new_conn.port
+        assert connection.schema == new_conn.schema
+        assert connection.extra_dejson == new_conn.extra_dejson
 
     # pylint: disable=undefined-variable
     @parameterized.expand([(x,) for x in test_from_uri_params], UriTestCaseConfig.uri_test_name)
@@ -352,11 +420,9 @@ class TestConnection(unittest.TestCase):
         for conn_attr, expected_val in test_config.test_conn_attributes.items():
             actual_val = getattr(new_conn, conn_attr)
             if expected_val is None:
-                self.assertIsNone(expected_val)
-            if isinstance(expected_val, dict):
-                self.assertDictEqual(expected_val, actual_val)
+                assert actual_val is None
             else:
-                self.assertEqual(expected_val, actual_val)
+                assert actual_val == expected_val
 
     @parameterized.expand(
         [
@@ -428,86 +494,111 @@ class TestConnection(unittest.TestCase):
     def test_connection_from_with_auth_info(self, uri, uri_parts):
         connection = Connection(uri=uri)
 
-        self.assertEqual(connection.conn_type, uri_parts.conn_type)
-        self.assertEqual(connection.login, uri_parts.login)
-        self.assertEqual(connection.password, uri_parts.password)
-        self.assertEqual(connection.host, uri_parts.host)
-        self.assertEqual(connection.port, uri_parts.port)
-        self.assertEqual(connection.schema, uri_parts.schema)
+        assert connection.conn_type == uri_parts.conn_type
+        assert connection.login == uri_parts.login
+        assert connection.password == uri_parts.password
+        assert connection.host == uri_parts.host
+        assert connection.port == uri_parts.port
+        assert connection.schema == uri_parts.schema
 
-    @mock.patch.dict('os.environ', {
-        'AIRFLOW_CONN_TEST_URI': 'postgres://username:password@ec2.compute.com:5432/the_database',
-    })
+    @mock.patch.dict(
+        'os.environ',
+        {
+            'AIRFLOW_CONN_TEST_URI': 'postgres://username:password@ec2.compute.com:5432/the_database',
+        },
+    )
     def test_using_env_var(self):
         conn = SqliteHook.get_connection(conn_id='test_uri')
-        self.assertEqual('ec2.compute.com', conn.host)
-        self.assertEqual('the_database', conn.schema)
-        self.assertEqual('username', conn.login)
-        self.assertEqual('password', conn.password)
-        self.assertEqual(5432, conn.port)
+        assert 'ec2.compute.com' == conn.host
+        assert 'the_database' == conn.schema
+        assert 'username' == conn.login
+        assert 'password' == conn.password
+        assert 5432 == conn.port
 
-    @mock.patch.dict('os.environ', {
-        'AIRFLOW_CONN_TEST_URI_NO_CREDS': 'postgres://ec2.compute.com/the_database',
-    })
+        self.mask_secret.assert_called_once_with('password')
+
+    @mock.patch.dict(
+        'os.environ',
+        {
+            'AIRFLOW_CONN_TEST_URI_NO_CREDS': 'postgres://ec2.compute.com/the_database',
+        },
+    )
     def test_using_unix_socket_env_var(self):
         conn = SqliteHook.get_connection(conn_id='test_uri_no_creds')
-        self.assertEqual('ec2.compute.com', conn.host)
-        self.assertEqual('the_database', conn.schema)
-        self.assertIsNone(conn.login)
-        self.assertIsNone(conn.password)
-        self.assertIsNone(conn.port)
+        assert 'ec2.compute.com' == conn.host
+        assert 'the_database' == conn.schema
+        assert conn.login is None
+        assert conn.password is None
+        assert conn.port is None
 
     def test_param_setup(self):
-        conn = Connection(conn_id='local_mysql', conn_type='mysql',
-                          host='localhost', login='airflow',
-                          password='airflow', schema='airflow')
-        self.assertEqual('localhost', conn.host)
-        self.assertEqual('airflow', conn.schema)
-        self.assertEqual('airflow', conn.login)
-        self.assertEqual('airflow', conn.password)
-        self.assertIsNone(conn.port)
+        conn = Connection(
+            conn_id='local_mysql',
+            conn_type='mysql',
+            host='localhost',
+            login='airflow',
+            password='airflow',
+            schema='airflow',
+        )
+        assert 'localhost' == conn.host
+        assert 'airflow' == conn.schema
+        assert 'airflow' == conn.login
+        assert 'airflow' == conn.password
+        assert conn.port is None
 
     def test_env_var_priority(self):
         conn = SqliteHook.get_connection(conn_id='airflow_db')
-        self.assertNotEqual('ec2.compute.com', conn.host)
+        assert 'ec2.compute.com' != conn.host
 
-        with mock.patch.dict('os.environ', {
-            'AIRFLOW_CONN_AIRFLOW_DB': 'postgres://username:password@ec2.compute.com:5432/the_database',
-        }):
+        with mock.patch.dict(
+            'os.environ',
+            {
+                'AIRFLOW_CONN_AIRFLOW_DB': 'postgres://username:password@ec2.compute.com:5432/the_database',
+            },
+        ):
             conn = SqliteHook.get_connection(conn_id='airflow_db')
-            self.assertEqual('ec2.compute.com', conn.host)
-            self.assertEqual('the_database', conn.schema)
-            self.assertEqual('username', conn.login)
-            self.assertEqual('password', conn.password)
-            self.assertEqual(5432, conn.port)
+            assert 'ec2.compute.com' == conn.host
+            assert 'the_database' == conn.schema
+            assert 'username' == conn.login
+            assert 'password' == conn.password
+            assert 5432 == conn.port
 
-    @mock.patch.dict('os.environ', {
-        'AIRFLOW_CONN_TEST_URI': 'postgres://username:password@ec2.compute.com:5432/the_database',
-        'AIRFLOW_CONN_TEST_URI_NO_CREDS': 'postgres://ec2.compute.com/the_database',
-    })
+    @mock.patch.dict(
+        'os.environ',
+        {
+            'AIRFLOW_CONN_TEST_URI': 'postgres://username:password@ec2.compute.com:5432/the_database',
+            'AIRFLOW_CONN_TEST_URI_NO_CREDS': 'postgres://ec2.compute.com/the_database',
+        },
+    )
     def test_dbapi_get_uri(self):
         conn = BaseHook.get_connection(conn_id='test_uri')
         hook = conn.get_hook()
-        self.assertEqual('postgres://username:password@ec2.compute.com:5432/the_database', hook.get_uri())
+        assert 'postgres://username:password@ec2.compute.com:5432/the_database' == hook.get_uri()
         conn2 = BaseHook.get_connection(conn_id='test_uri_no_creds')
         hook2 = conn2.get_hook()
-        self.assertEqual('postgres://ec2.compute.com/the_database', hook2.get_uri())
+        assert 'postgres://ec2.compute.com/the_database' == hook2.get_uri()
 
-    @mock.patch.dict('os.environ', {
-        'AIRFLOW_CONN_TEST_URI': 'postgres://username:password@ec2.compute.com:5432/the_database',
-        'AIRFLOW_CONN_TEST_URI_NO_CREDS': 'postgres://ec2.compute.com/the_database',
-    })
+    @mock.patch.dict(
+        'os.environ',
+        {
+            'AIRFLOW_CONN_TEST_URI': 'postgres://username:password@ec2.compute.com:5432/the_database',
+            'AIRFLOW_CONN_TEST_URI_NO_CREDS': 'postgres://ec2.compute.com/the_database',
+        },
+    )
     def test_dbapi_get_sqlalchemy_engine(self):
         conn = BaseHook.get_connection(conn_id='test_uri')
         hook = conn.get_hook()
         engine = hook.get_sqlalchemy_engine()
-        self.assertIsInstance(engine, sqlalchemy.engine.Engine)
-        self.assertEqual('postgres://username:password@ec2.compute.com:5432/the_database', str(engine.url))
+        assert isinstance(engine, sqlalchemy.engine.Engine)
+        assert 'postgres://username:password@ec2.compute.com:5432/the_database' == str(engine.url)
 
-    @mock.patch.dict('os.environ', {
-        'AIRFLOW_CONN_TEST_URI': 'postgres://username:password@ec2.compute.com:5432/the_database',
-        'AIRFLOW_CONN_TEST_URI_NO_CREDS': 'postgres://ec2.compute.com/the_database',
-    })
+    @mock.patch.dict(
+        'os.environ',
+        {
+            'AIRFLOW_CONN_TEST_URI': 'postgres://username:password@ec2.compute.com:5432/the_database',
+            'AIRFLOW_CONN_TEST_URI_NO_CREDS': 'postgres://ec2.compute.com/the_database',
+        },
+    )
     def test_get_connections_env_var(self):
         conns = SqliteHook.get_connections(conn_id='test_uri')
         assert len(conns) == 1
@@ -518,23 +609,43 @@ class TestConnection(unittest.TestCase):
         assert conns[0].port == 5432
 
     def test_connection_mixed(self):
-        with self.assertRaisesRegex(
+        with pytest.raises(
             AirflowException,
-            re.escape(
+            match=re.escape(
                 "You must create an object using the URI or individual values (conn_type, host, login, "
                 "password, schema, port or extra).You can't mix these two ways to create this object."
-            )
+            ),
         ):
             Connection(conn_id="TEST_ID", uri="mysql://", schema="AAA")
 
+    def test_masking_from_db(self):
+        """Test secrets are masked when loaded directly from the DB"""
+        from airflow.settings import Session
 
-class TestConnTypeToHook(unittest.TestCase):
-    def test_enforce_alphabetical_order(self):
-        current_keys = list(CONN_TYPE_TO_HOOK.keys())
-        expected_keys = sorted(current_keys)
+        session = Session()
 
-        self.assertEqual(expected_keys, current_keys)
+        try:
+            conn = Connection(
+                conn_id=f"test-{os.getpid()}",
+                conn_type="http",
+                password="s3cr3t",
+                extra='{"apikey":"masked too"}',
+            )
+            session.add(conn)
+            session.flush()
 
-    def test_hooks_importable(self):
-        for hook_path, _ in CONN_TYPE_TO_HOOK.values():
-            self.assertTrue(issubclass(import_string(hook_path), BaseHook))
+            # Make sure we re-load it, not just get the cached object back
+            session.expunge(conn)
+
+            self.mask_secret.reset_mock()
+
+            from_db = session.query(Connection).get(conn.id)
+            from_db.extra_dejson
+
+            assert self.mask_secret.mock_calls == [
+                # We should have called it _again_ when loading from the DB
+                mock.call("s3cr3t"),
+                mock.call({"apikey": "masked too"}),
+            ]
+        finally:
+            session.rollback()

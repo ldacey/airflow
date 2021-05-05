@@ -17,8 +17,20 @@
 # under the License.
 from airflow.jobs.base_job import BaseJob
 from airflow.models import (
-    Connection, DagModel, DagRun, DagTag, Log, Pool, RenderedTaskInstanceFields, SlaMiss, TaskFail,
-    TaskInstance, TaskReschedule, Variable, XCom, errors,
+    Connection,
+    DagModel,
+    DagRun,
+    DagTag,
+    Log,
+    Pool,
+    RenderedTaskInstanceFields,
+    SlaMiss,
+    TaskFail,
+    TaskInstance,
+    TaskReschedule,
+    Variable,
+    XCom,
+    errors,
 )
 from airflow.models.dagcode import DagCode
 from airflow.models.serialized_dag import SerializedDagModel
@@ -46,11 +58,6 @@ def clear_db_serialized_dags():
 def clear_db_sla_miss():
     with create_session() as session:
         session.query(SlaMiss).delete()
-
-
-def clear_db_errors():
-    with create_session() as session:
-        session.query(errors.ImportError).delete()
 
 
 def clear_db_pools():

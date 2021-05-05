@@ -19,7 +19,10 @@ import unittest
 from sqlalchemy import or_
 
 from airflow.api_connexion.schemas.xcom_schema import (
-    XComCollection, xcom_collection_item_schema, xcom_collection_schema, xcom_schema,
+    XComCollection,
+    xcom_collection_item_schema,
+    xcom_collection_schema,
+    xcom_schema,
 )
 from airflow.models import XCom
 from airflow.utils.dates import parse_execution_date
@@ -27,7 +30,6 @@ from airflow.utils.session import create_session, provide_session
 
 
 class TestXComSchemaBase(unittest.TestCase):
-
     def setUp(self):
         """
         Clear Hanging XComs pre test
@@ -44,7 +46,6 @@ class TestXComSchemaBase(unittest.TestCase):
 
 
 class TestXComCollectionItemSchema(TestXComSchemaBase):
-
     def setUp(self) -> None:
         super().setUp()
         self.default_time = '2005-04-02T21:00:00+00:00'
@@ -63,16 +64,13 @@ class TestXComCollectionItemSchema(TestXComSchemaBase):
         session.commit()
         xcom_model = session.query(XCom).first()
         deserialized_xcom = xcom_collection_item_schema.dump(xcom_model)
-        self.assertEqual(
-            deserialized_xcom,
-            {
-                'key': 'test_key',
-                'timestamp': self.default_time,
-                'execution_date': self.default_time,
-                'task_id': 'test_task_id',
-                'dag_id': 'test_dag',
-            }
-        )
+        assert deserialized_xcom == {
+            'key': 'test_key',
+            'timestamp': self.default_time,
+            'execution_date': self.default_time,
+            'task_id': 'test_task_id',
+            'dag_id': 'test_dag',
+        }
 
     def test_deserialize(self):
         xcom_dump = {
@@ -83,20 +81,16 @@ class TestXComCollectionItemSchema(TestXComSchemaBase):
             'dag_id': 'test_dag',
         }
         result = xcom_collection_item_schema.load(xcom_dump)
-        self.assertEqual(
-            result,
-            {
-                'key': 'test_key',
-                'timestamp': self.default_time_parsed,
-                'execution_date': self.default_time_parsed,
-                'task_id': 'test_task_id',
-                'dag_id': 'test_dag',
-            }
-        )
+        assert result == {
+            'key': 'test_key',
+            'timestamp': self.default_time_parsed,
+            'execution_date': self.default_time_parsed,
+            'task_id': 'test_task_id',
+            'dag_id': 'test_dag',
+        }
 
 
 class TestXComCollectionSchema(TestXComSchemaBase):
-
     def setUp(self) -> None:
         super().setUp()
         self.default_time_1 = '2005-04-02T21:00:00+00:00'
@@ -127,36 +121,34 @@ class TestXComCollectionSchema(TestXComSchemaBase):
             or_(XCom.execution_date == self.time_1, XCom.execution_date == self.time_2)
         )
         xcom_models_queried = xcom_models_query.all()
-        deserialized_xcoms = xcom_collection_schema.dump(XComCollection(
-            xcom_entries=xcom_models_queried,
-            total_entries=xcom_models_query.count(),
-        ))
-        self.assertEqual(
-            deserialized_xcoms,
-            {
-                'xcom_entries': [
-                    {
-                        'key': 'test_key_1',
-                        'timestamp': self.default_time_1,
-                        'execution_date': self.default_time_1,
-                        'task_id': 'test_task_id_1',
-                        'dag_id': 'test_dag_1',
-                    },
-                    {
-                        'key': 'test_key_2',
-                        'timestamp': self.default_time_2,
-                        'execution_date': self.default_time_2,
-                        'task_id': 'test_task_id_2',
-                        'dag_id': 'test_dag_2',
-                    }
-                ],
-                'total_entries': len(xcom_models),
-            }
+        deserialized_xcoms = xcom_collection_schema.dump(
+            XComCollection(
+                xcom_entries=xcom_models_queried,
+                total_entries=xcom_models_query.count(),
+            )
         )
+        assert deserialized_xcoms == {
+            'xcom_entries': [
+                {
+                    'key': 'test_key_1',
+                    'timestamp': self.default_time_1,
+                    'execution_date': self.default_time_1,
+                    'task_id': 'test_task_id_1',
+                    'dag_id': 'test_dag_1',
+                },
+                {
+                    'key': 'test_key_2',
+                    'timestamp': self.default_time_2,
+                    'execution_date': self.default_time_2,
+                    'task_id': 'test_task_id_2',
+                    'dag_id': 'test_dag_2',
+                },
+            ],
+            'total_entries': len(xcom_models),
+        }
 
 
 class TestXComSchema(TestXComSchemaBase):
-
     def setUp(self) -> None:
         super().setUp()
         self.default_time = '2005-04-02T21:00:00+00:00'
@@ -176,17 +168,14 @@ class TestXComSchema(TestXComSchemaBase):
         session.commit()
         xcom_model = session.query(XCom).first()
         deserialized_xcom = xcom_schema.dump(xcom_model)
-        self.assertEqual(
-            deserialized_xcom,
-            {
-                'key': 'test_key',
-                'timestamp': self.default_time,
-                'execution_date': self.default_time,
-                'task_id': 'test_task_id',
-                'dag_id': 'test_dag',
-                'value': 'test_binary',
-            }
-        )
+        assert deserialized_xcom == {
+            'key': 'test_key',
+            'timestamp': self.default_time,
+            'execution_date': self.default_time,
+            'task_id': 'test_task_id',
+            'dag_id': 'test_dag',
+            'value': 'test_binary',
+        }
 
     def test_deserialize(self):
         xcom_dump = {
@@ -198,14 +187,11 @@ class TestXComSchema(TestXComSchemaBase):
             'value': b'test_binary',
         }
         result = xcom_schema.load(xcom_dump)
-        self.assertEqual(
-            result,
-            {
-                'key': 'test_key',
-                'timestamp': self.default_time_parsed,
-                'execution_date': self.default_time_parsed,
-                'task_id': 'test_task_id',
-                'dag_id': 'test_dag',
-                'value': 'test_binary',
-            }
-        )
+        assert result == {
+            'key': 'test_key',
+            'timestamp': self.default_time_parsed,
+            'execution_date': self.default_time_parsed,
+            'task_id': 'test_task_id',
+            'dag_id': 'test_dag',
+            'value': 'test_binary',
+        }

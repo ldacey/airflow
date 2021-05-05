@@ -16,7 +16,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """Celery command"""
-import sys
+
 from multiprocessing import Process
 from typing import Optional
 
@@ -95,8 +95,7 @@ def _serve_logs(skip_serve_logs: bool = False) -> Optional[Process]:
 def worker(args):
     """Starts Airflow Celery worker"""
     if not settings.validate_session():
-        print("Worker exiting... database connection precheck failed! ")
-        sys.exit(1)
+        raise SystemExit("Worker exiting, database connection precheck failed.")
 
     autoscale = args.autoscale
     skip_serve_logs = args.skip_serve_logs
@@ -140,6 +139,8 @@ def worker(args):
         'hostname': args.celery_hostname,
         'loglevel': conf.get('logging', 'LOGGING_LEVEL'),
         'pidfile': pid_file_path,
+        'without_mingle': args.without_mingle,
+        'without_gossip': args.without_gossip,
     }
 
     if conf.has_option("celery", "pool"):
@@ -155,24 +156,20 @@ def worker(args):
     if args.daemon:
         # Run Celery worker as daemon
         handle = setup_logging(log_file)
-        stdout = open(stdout, 'w+')
-        stderr = open(stderr, 'w+')
 
-        if args.umask:
-            umask = args.umask
+        with open(stdout, 'w+') as stdout_handle, open(stderr, 'w+') as stderr_handle:
+            if args.umask:
+                umask = args.umask
 
-        ctx = daemon.DaemonContext(
-            files_preserve=[handle],
-            umask=int(umask, 8),
-            stdout=stdout,
-            stderr=stderr,
-        )
-        with ctx:
-            sub_proc = _serve_logs(skip_serve_logs)
-            worker_instance.run(**options)
-
-        stdout.close()
-        stderr.close()
+            ctx = daemon.DaemonContext(
+                files_preserve=[handle],
+                umask=int(umask, 8),
+                stdout=stdout_handle,
+                stderr=stderr_handle,
+            )
+            with ctx:
+                sub_proc = _serve_logs(skip_serve_logs)
+                worker_instance.run(**options)
     else:
         # Run Celery worker in the same process
         sub_proc = _serve_logs(skip_serve_logs)

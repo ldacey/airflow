@@ -18,96 +18,111 @@
 # shellcheck source=scripts/ci/libraries/_script_init.sh
 . "$( dirname "${BASH_SOURCE[0]}" )/../libraries/_script_init.sh"
 
-# adding trap to exiting trap
-HANDLERS="$( trap -p EXIT | cut -f2 -d \' )"
-# shellcheck disable=SC2064
-trap "${HANDLERS}${HANDLERS:+;}dump_kind_logs" EXIT
+kind::make_sure_kubernetes_tools_are_installed
+kind::get_kind_cluster_name
 
-INTERACTIVE="false"
+traps::add_trap kind::dump_kind_logs EXIT HUP INT TERM
 
-declare -a TESTS
-declare -a PYTEST_ARGS
+interactive="false"
 
-TESTS=()
+declare -a tests_to_run
+declare -a pytest_args
 
-if [[ $# != 0 ]]; then
-    if [[ $1 == "--help" || $1 == "-h" ]]; then
-        echo
-        echo "Running kubernetes tests"
-        echo
-        echo "    $0                      - runs all kubernetes tests"
-        echo "    $0 TEST [TEST ...]      - runs selected kubernetes tests (from kubernetes_tests folder)"
-        echo "    $0 [-i|--interactive]   - Activates virtual environment ready to run tests and drops you in"
-        echo "    $0 [--help]             - Prints this help message"
-        echo
-        exit
-    elif [[ $1 == "--interactive" || $1 == "-i" ]]; then
-        echo
-        echo "Entering interactive environment for kubernetes testing"
-        echo
-        INTERACTIVE="true"
-    else
-        TESTS=("${@}")
-    fi
-    PYTEST_ARGS=(
-        "--pythonwarnings=ignore::DeprecationWarning"
-        "--pythonwarnings=ignore::PendingDeprecationWarning"
-    )
-else
-    TESTS=("kubernetes_tests")
-    PYTEST_ARGS=(
-        "--verbosity=1"
-        "--strict-markers"
-        "--durations=100"
-        "--cov=airflow/"
-        "--cov-config=.coveragerc"
-        "--cov-report=xml:files/coverage.xml"
-        "--color=yes"
-        "--maxfail=50"
-        "--pythonwarnings=ignore::DeprecationWarning"
-        "--pythonwarnings=ignore::PendingDeprecationWarning"
+tests_to_run=()
+
+function parse_tests_to_run() {
+    if [[ $# != 0 ]]; then
+        if [[ $1 == "--help" || $1 == "-h" ]]; then
+            echo
+            echo "Running kubernetes tests"
+            echo
+            echo "    $0                      - runs all kubernetes tests"
+            echo "    $0 TEST [TEST ...]      - runs selected kubernetes tests (from kubernetes_tests folder)"
+            echo "    $0 [-i|--interactive]   - Activates virtual environment ready to run tests and drops you in"
+            echo "    $0 [--help]             - Prints this help message"
+            echo
+            exit
+        elif [[ $1 == "--interactive" || $1 == "-i" ]]; then
+            echo
+            echo "Entering interactive environment for kubernetes testing"
+            echo
+            interactive="true"
+        else
+            tests_to_run=("${@}")
+        fi
+        pytest_args=(
+            "--pythonwarnings=ignore::DeprecationWarning"
+            "--pythonwarnings=ignore::PendingDeprecationWarning"
         )
+    else
+        tests_to_run=("kubernetes_tests")
+        pytest_args=(
+            "--verbosity=1"
+            "--strict-markers"
+            "--durations=100"
+            "--cov=airflow/"
+            "--cov-config=.coveragerc"
+            "--cov-report=xml:files/coverage=${KIND_CLUSTER_NAME}.xml"
+            "--color=yes"
+            "--maxfail=50"
+            "--pythonwarnings=ignore::DeprecationWarning"
+            "--pythonwarnings=ignore::PendingDeprecationWarning"
+            )
 
-fi
+    fi
+}
 
-get_environment_for_builds_on_ci
-initialize_kind_variables
+function create_virtualenv() {
+    HOST_PYTHON_VERSION=$(python3 -c 'import sys; print(f"{sys.version_info[0]}.{sys.version_info[1]}")')
+    readonly HOST_PYTHON_VERSION
+
+    local virtualenv_path="${BUILD_CACHE_DIR}/.kubernetes_venv/${KIND_CLUSTER_NAME}_host_python_${HOST_PYTHON_VERSION}"
+
+    mkdir -pv "${BUILD_CACHE_DIR}/.kubernetes_venv/"
+    if [[ ! -d ${virtualenv_path} ]]; then
+        echo
+        echo "Creating virtualenv at ${virtualenv_path}"
+        echo
+        python3 -m venv "${virtualenv_path}"
+    fi
+
+    . "${virtualenv_path}/bin/activate"
+
+    pip install --upgrade "pip==${AIRFLOW_PIP_VERSION}" "wheel==${WHEEL_VERSION}"
+
+    pip install pytest freezegun pytest-cov \
+      --constraint "https://raw.githubusercontent.com/${CONSTRAINTS_GITHUB_REPOSITORY}/${DEFAULT_CONSTRAINTS_BRANCH}/constraints-${HOST_PYTHON_VERSION}.txt"
+
+    pip install -e ".[cncf.kubernetes,postgres]" \
+      --constraint "https://raw.githubusercontent.com/${CONSTRAINTS_GITHUB_REPOSITORY}/${DEFAULT_CONSTRAINTS_BRANCH}/constraints-${HOST_PYTHON_VERSION}.txt"
+}
+
+function run_tests() {
+    pytest "${pytest_args[@]}" "${tests_to_run[@]}"
+}
 
 cd "${AIRFLOW_SOURCES}" || exit 1
 
-VIRTUALENV_PATH="${BUILD_CACHE_DIR}/.kubernetes_venv"
+set +u
+parse_tests_to_run "${@}"
+set -u
 
-if [[ ! -d ${VIRTUALENV_PATH} ]]; then
-    echo
-    echo "Creating virtualenv at ${VIRTUALENV_PATH}"
-    echo
-    python -m venv "${VIRTUALENV_PATH}"
-fi
+create_virtualenv
 
-. "${VIRTUALENV_PATH}/bin/activate"
-
-pip install pytest freezegun pytest-cov \
-  --constraint "https://raw.githubusercontent.com/apache/airflow/${DEFAULT_CONSTRAINTS_BRANCH}/constraints-${PYTHON_MAJOR_MINOR_VERSION}.txt"
-
-
-pip install -e ".[kubernetes]" \
-  --constraint "https://raw.githubusercontent.com/apache/airflow/${DEFAULT_CONSTRAINTS_BRANCH}/constraints-${PYTHON_MAJOR_MINOR_VERSION}.txt"
-
-if [[ ${INTERACTIVE} == "true" ]]; then
+if [[ ${interactive} == "true" ]]; then
     echo
     echo "Activating the virtual environment for kubernetes testing"
     echo
     echo "You can run kubernetes testing via 'pytest kubernetes_tests/....'"
     echo "You can add -s to see the output of your tests on screen"
     echo
-    echo "The webserver is available at http://localhost:30809/"
+    echo "The webserver is available at http://localhost:8080/"
     echo
     echo "User/password: admin/admin"
     echo
     echo "You are entering the virtualenv now. Type exit to exit back to the original shell"
     echo
-    kubectl config set-context --current --namespace=airflow
     exec "${SHELL}"
 else
-    pytest "${PYTEST_ARGS[@]}" "${TESTS[@]}"
+    run_tests
 fi

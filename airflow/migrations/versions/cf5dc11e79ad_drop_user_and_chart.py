@@ -18,7 +18,7 @@
 """drop_user_and_chart
 
 Revision ID: cf5dc11e79ad
-Revises: a66efa278eea
+Revises: 03afc6b6f902
 Create Date: 2019-01-24 15:30:35.834740
 
 """
@@ -29,15 +29,15 @@ from sqlalchemy.engine.reflection import Inspector
 
 # revision identifiers, used by Alembic.
 revision = 'cf5dc11e79ad'
-down_revision = 'a66efa278eea'
+down_revision = '03afc6b6f902'
 branch_labels = None
 depends_on = None
 
 
-def upgrade():   # noqa: D103
+def upgrade():  # noqa: D103
     # We previously had a KnownEvent's table, but we deleted the table without
     # a down migration to remove it (so we didn't delete anyone's data if they
-    # were happing to use the feature.
+    # were happening to use the feature.
     #
     # But before we can delete the users table we need to drop the FK
 
@@ -46,16 +46,21 @@ def upgrade():   # noqa: D103
     tables = inspector.get_table_names()
 
     if 'known_event' in tables:
-        op.drop_constraint('known_event_user_id_fkey', 'known_event')
+        for fkey in inspector.get_foreign_keys(table_name="known_event", referred_table="users"):
+            if fkey['name']:
+                with op.batch_alter_table(table_name='known_event') as bop:
+                    bop.drop_constraint(fkey['name'], type_="foreignkey")
 
     if "chart" in tables:
-        op.drop_table("chart", )
+        op.drop_table(
+            "chart",
+        )
 
     if "users" in tables:
         op.drop_table("users")
 
 
-def downgrade():   # noqa: D103
+def downgrade():  # noqa: D103
     conn = op.get_bind()
 
     op.create_table(
@@ -66,7 +71,7 @@ def downgrade():   # noqa: D103
         sa.Column('password', sa.String(255)),
         sa.Column('superuser', sa.Boolean(), default=False),
         sa.PrimaryKeyConstraint('id'),
-        sa.UniqueConstraint('username')
+        sa.UniqueConstraint('username'),
     )
 
     op.create_table(
@@ -86,8 +91,11 @@ def downgrade():   # noqa: D103
         sa.Column('x_is_date', sa.Boolean(), nullable=True),
         sa.Column('iteration_no', sa.Integer(), nullable=True),
         sa.Column('last_modified', sa.DateTime(), nullable=True),
-        sa.ForeignKeyConstraint(['user_id'], ['users.id'], ),
-        sa.PrimaryKeyConstraint('id')
+        sa.ForeignKeyConstraint(
+            ['user_id'],
+            ['users.id'],
+        ),
+        sa.PrimaryKeyConstraint('id'),
     )
 
     if conn.dialect.name == 'mysql':

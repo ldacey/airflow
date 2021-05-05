@@ -15,7 +15,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""This module is deprecated. Please use `airflow.providers.ftp.sensors.ftp`."""
+"""This module is deprecated. Please use :mod:`airflow.providers.ftp.sensors.ftp`."""
 
 import warnings
 
@@ -24,5 +24,6 @@ from airflow.providers.ftp.sensors.ftp import FTPSensor, FTPSSensor  # noqa
 
 warnings.warn(
     "This module is deprecated. Please use `airflow.providers.ftp.sensors.ftp`.",
-    DeprecationWarning, stacklevel=2
+    DeprecationWarning,
+    stacklevel=2,
 )

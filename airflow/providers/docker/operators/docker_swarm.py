@@ -85,7 +85,7 @@ class DockerSwarmOperator(DockerOperator):
     :type tmp_dir: str
     :param user: Default user inside the docker container.
     :type user: int or str
-    :param docker_conn_id: ID of the Airflow connection to use
+    :param docker_conn_id: The :ref:`Docker connection id <howto/connection:docker>`
     :type docker_conn_id: str
     :param tty: Allocate pseudo-TTY to the container of this service
         This needs to be set see logs of the Docker container / service.
@@ -97,12 +97,7 @@ class DockerSwarmOperator(DockerOperator):
     """
 
     @apply_defaults
-    def __init__(
-            self,
-            *,
-            image: str,
-            enable_logging: bool = True,
-            **kwargs) -> None:
+    def __init__(self, *, image: str, enable_logging: bool = True, **kwargs) -> None:
         super().__init__(image=image, **kwargs)
 
         self.enable_logging = enable_logging
@@ -123,16 +118,16 @@ class DockerSwarmOperator(DockerOperator):
             types.TaskTemplate(
                 container_spec=types.ContainerSpec(
                     image=self.image,
-                    command=self.get_command(),
+                    command=self.format_command(self.command),
                     env=self.environment,
                     user=self.user,
                     tty=self.tty,
                 ),
                 restart_policy=types.RestartPolicy(condition='none'),
-                resources=types.Resources(mem_limit=self.mem_limit)
+                resources=types.Resources(mem_limit=self.mem_limit),
             ),
-            name='airflow-%s' % get_random_string(),
-            labels={'name': 'airflow__%s__%s' % (self.dag_id, self.task_id)}
+            name=f'airflow-{get_random_string()}',
+            labels={'name': f'airflow__{self.dag_id}__{self.task_id}'},
         )
 
         self.log.info('Service started: %s', str(self.service))
@@ -149,23 +144,23 @@ class DockerSwarmOperator(DockerOperator):
                 self.log.info('Service status before exiting: %s', self._service_status())
                 break
 
-        if self.auto_remove:
+        if self.service and self._service_status() != 'complete':
+            if self.auto_remove:
+                self.cli.remove_service(self.service['ID'])
+            raise AirflowException('Service did not complete: ' + repr(self.service))
+        elif self.auto_remove:
             if not self.service:
                 raise Exception("The 'service' should be initialized before!")
             self.cli.remove_service(self.service['ID'])
-        if self._service_status() == 'failed':
-            raise AirflowException('Service failed: ' + repr(self.service))
 
     def _service_status(self) -> Optional[str]:
         if not self.cli:
             raise Exception("The 'cli' should be initialized before!")
-        return self.cli.tasks(
-            filters={'service': self.service['ID']}
-        )[0]['Status']['State']
+        return self.cli.tasks(filters={'service': self.service['ID']})[0]['Status']['State']
 
     def _has_service_terminated(self) -> bool:
         status = self._service_status()
-        return status in ['failed', 'complete']
+        return status in ['complete', 'failed', 'shutdown', 'rejected', 'orphaned', 'remove']
 
     def _stream_logs_to_output(self) -> None:
         if not self.cli:

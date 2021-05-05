@@ -19,8 +19,9 @@
 
 import os
 import unittest
+from unittest import mock
 
-import mock
+import pytest
 
 from airflow.exceptions import AirflowException
 from airflow.providers.google.cloud.transfers.sftp_to_gcs import SFTPToGCSOperator
@@ -29,6 +30,7 @@ TASK_ID = "test-gcs-to-sftp-operator"
 GCP_CONN_ID = "GCP_CONN_ID"
 SFTP_CONN_ID = "SFTP_CONN_ID"
 DELEGATE_TO = "DELEGATE_TO"
+IMPERSONATION_CHAIN = ["ACCOUNT_1", "ACCOUNT_2", "ACCOUNT_3"]
 
 DEFAULT_MIME_TYPE = "application/octet-stream"
 
@@ -64,10 +66,13 @@ class TestSFTPToGCSOperator(unittest.TestCase):
             gcp_conn_id=GCP_CONN_ID,
             sftp_conn_id=SFTP_CONN_ID,
             delegate_to=DELEGATE_TO,
+            impersonation_chain=IMPERSONATION_CHAIN,
         )
         task.execute(None)
         gcs_hook.assert_called_once_with(
-            gcp_conn_id=GCP_CONN_ID, delegate_to=DELEGATE_TO
+            gcp_conn_id=GCP_CONN_ID,
+            delegate_to=DELEGATE_TO,
+            impersonation_chain=IMPERSONATION_CHAIN,
         )
         sftp_hook.assert_called_once_with(SFTP_CONN_ID)
 
@@ -96,10 +101,13 @@ class TestSFTPToGCSOperator(unittest.TestCase):
             gcp_conn_id=GCP_CONN_ID,
             sftp_conn_id=SFTP_CONN_ID,
             delegate_to=DELEGATE_TO,
+            impersonation_chain=IMPERSONATION_CHAIN,
         )
         task.execute(None)
         gcs_hook.assert_called_once_with(
-            gcp_conn_id=GCP_CONN_ID, delegate_to=DELEGATE_TO
+            gcp_conn_id=GCP_CONN_ID,
+            delegate_to=DELEGATE_TO,
+            impersonation_chain=IMPERSONATION_CHAIN,
         )
         sftp_hook.assert_called_once_with(SFTP_CONN_ID)
 
@@ -114,9 +122,7 @@ class TestSFTPToGCSOperator(unittest.TestCase):
             mime_type=DEFAULT_MIME_TYPE,
         )
 
-        sftp_hook.return_value.delete_file.assert_called_once_with(
-            SOURCE_OBJECT_NO_WILDCARD
-        )
+        sftp_hook.return_value.delete_file.assert_called_once_with(SOURCE_OBJECT_NO_WILDCARD)
 
     @mock.patch("airflow.providers.google.cloud.transfers.sftp_to_gcs.GCSHook")
     @mock.patch("airflow.providers.google.cloud.transfers.sftp_to_gcs.SFTPHook")
@@ -209,8 +215,8 @@ class TestSFTPToGCSOperator(unittest.TestCase):
             sftp_conn_id=SFTP_CONN_ID,
             delegate_to=DELEGATE_TO,
         )
-        with self.assertRaises(AirflowException) as cm:
+        with pytest.raises(AirflowException) as ctx:
             task.execute(None)
 
-        err = cm.exception
-        self.assertIn("Only one wildcard '*' is allowed in source_path parameter", str(err))
+        err = ctx.value
+        assert "Only one wildcard '*' is allowed in source_path parameter" in str(err)

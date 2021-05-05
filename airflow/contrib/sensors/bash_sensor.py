@@ -15,7 +15,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""This module is deprecated. Please use `airflow.sensors.bash`."""
+"""This module is deprecated. Please use :mod:`airflow.sensors.bash`."""
 
 import warnings
 
@@ -23,6 +23,5 @@ import warnings
 from airflow.sensors.bash import STDOUT, BashSensor, Popen, TemporaryDirectory, gettempdir  # noqa
 
 warnings.warn(
-    "This module is deprecated. Please use `airflow.sensors.bash`.",
-    DeprecationWarning, stacklevel=2
+    "This module is deprecated. Please use `airflow.sensors.bash`.", DeprecationWarning, stacklevel=2
 )

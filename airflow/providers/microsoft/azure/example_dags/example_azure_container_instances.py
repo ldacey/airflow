@@ -44,7 +44,7 @@ with DAG(
 ) as dag:
 
     t1 = AzureContainerInstancesOperator(
-        ci_conn_id='azure_container_instances_default',
+        ci_conn_id='azure_default',
         registry_conn_id=None,
         resource_group='resource-group',
         name='aci-test-{{ ds }}',
@@ -54,5 +54,5 @@ with DAG(
         volumes=[],
         memory_in_gb=4.0,
         cpu=1.0,
-        task_id='start_container'
+        task_id='start_container',
     )

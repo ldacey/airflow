@@ -16,9 +16,7 @@
 # specific language governing permissions and limitations
 # under the License.
 #
-"""
-This module contains a Google Cloud KMS hook.
-"""
+"""This module contains a Google Cloud KMS hook"""
 
 
 import base64
@@ -31,16 +29,15 @@ from airflow.providers.google.common.hooks.base_google import GoogleBaseHook
 
 
 def _b64encode(s: bytes) -> str:
-    """ Base 64 encodes a bytes object to a string """
+    """Base 64 encodes a bytes object to a string"""
     return base64.b64encode(s).decode("ascii")
 
 
 def _b64decode(s: str) -> bytes:
-    """ Base 64 decodes a string to bytes. """
+    """Base 64 decodes a string to bytes"""
     return base64.b64decode(s.encode("utf-8"))
 
 
-# noinspection PyAbstractClass
 class CloudKMSHook(GoogleBaseHook):
     """
     Hook for Google Cloud Key Management service.
@@ -84,8 +81,7 @@ class CloudKMSHook(GoogleBaseHook):
         """
         if not self._conn:
             self._conn = KeyManagementServiceClient(
-                credentials=self._get_credentials(),
-                client_info=self.client_info
+                credentials=self._get_credentials(), client_info=self.client_info
             )
         return self._conn
 
@@ -122,12 +118,14 @@ class CloudKMSHook(GoogleBaseHook):
         :rtype: str
         """
         response = self.get_conn().encrypt(
-            name=key_name,
-            plaintext=plaintext,
-            additional_authenticated_data=authenticated_data,
+            request={
+                'name': key_name,
+                'plaintext': plaintext,
+                'additional_authenticated_data': authenticated_data,
+            },
             retry=retry,
             timeout=timeout,
-            metadata=metadata,
+            metadata=metadata or (),
         )
 
         ciphertext = _b64encode(response.ciphertext)
@@ -145,7 +143,7 @@ class CloudKMSHook(GoogleBaseHook):
         """
         Decrypts a ciphertext message using Google Cloud KMS.
 
-        :param key_name: The Resource Name for the key to be used for decyption.
+        :param key_name: The Resource Name for the key to be used for decryption.
                          Of the form ``projects/*/locations/*/keyRings/*/cryptoKeys/**``
         :type key_name: str
         :param ciphertext: The message to be decrypted.
@@ -165,13 +163,14 @@ class CloudKMSHook(GoogleBaseHook):
         :rtype: bytes
         """
         response = self.get_conn().decrypt(
-            name=key_name,
-            ciphertext=_b64decode(ciphertext),
-            additional_authenticated_data=authenticated_data,
+            request={
+                'name': key_name,
+                'ciphertext': _b64decode(ciphertext),
+                'additional_authenticated_data': authenticated_data,
+            },
             retry=retry,
             timeout=timeout,
-            metadata=metadata,
+            metadata=metadata or (),
         )
 
-        plaintext = response.plaintext
-        return plaintext
+        return response.plaintext

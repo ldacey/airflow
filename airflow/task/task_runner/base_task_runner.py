@@ -16,16 +16,19 @@
 # specific language governing permissions and limitations
 # under the License.
 """Base task runner"""
-import getpass
 import os
 import subprocess
 import threading
+from tempfile import NamedTemporaryFile
+from typing import Optional, Union
 
 from airflow.configuration import conf
 from airflow.exceptions import AirflowConfigException
+from airflow.models.taskinstance import load_error_file
 from airflow.utils.configuration import tmp_configuration_copy
 from airflow.utils.log.logging_mixin import LoggingMixin
 from airflow.utils.net import get_hostname
+from airflow.utils.platform import getuser
 
 PYTHONPATH_VAR = 'PYTHONPATH'
 
@@ -57,7 +60,7 @@ class BaseTaskRunner(LoggingMixin):
         # Add sudo commands to change user if we need to. Needed to handle SubDagOperator
         # case using a SequentialExecutor.
         self.log.debug("Planning to run as the %s user", self.run_as_user)
-        if self.run_as_user and (self.run_as_user != getpass.getuser()):
+        if self.run_as_user and (self.run_as_user != getuser()):
             # We want to include any environment variables now, as we won't
             # want to have to specify them in the sudo call - they would show
             # up in `ps` that way! And run commands now, as the other user
@@ -65,17 +68,14 @@ class BaseTaskRunner(LoggingMixin):
             cfg_path = tmp_configuration_copy(chmod=0o600)
 
             # Give ownership of file to user; only they can read and write
-            subprocess.call(
-                ['sudo', 'chown', self.run_as_user, cfg_path],
-                close_fds=True
-            )
+            subprocess.call(['sudo', 'chown', self.run_as_user, cfg_path], close_fds=True)
 
             # propagate PYTHONPATH environment variable
             pythonpath_value = os.environ.get(PYTHONPATH_VAR, '')
             popen_prepend = ['sudo', '-E', '-H', '-u', self.run_as_user]
 
             if pythonpath_value:
-                popen_prepend.append('{}={}'.format(PYTHONPATH_VAR, pythonpath_value))
+                popen_prepend.append(f'{PYTHONPATH_VAR}={pythonpath_value}')
 
         else:
             # Always provide a copy of the configuration file settings. Since
@@ -84,16 +84,26 @@ class BaseTaskRunner(LoggingMixin):
             # - the runner can read/execute those values as it needs
             cfg_path = tmp_configuration_copy(chmod=0o600)
 
+        # pylint: disable=consider-using-with
+        self._error_file = NamedTemporaryFile(delete=True)
         self._cfg_path = cfg_path
-        self._command = popen_prepend + self._task_instance.command_as_list(
-            raw=True,
-            pickle_id=local_task_job.pickle_id,
-            mark_success=local_task_job.mark_success,
-            job_id=local_task_job.id,
-            pool=local_task_job.pool,
-            cfg_path=cfg_path,
+        self._command = (
+            popen_prepend
+            + self._task_instance.command_as_list(
+                raw=True,
+                pickle_id=local_task_job.pickle_id,
+                mark_success=local_task_job.mark_success,
+                job_id=local_task_job.id,
+                pool=local_task_job.pool,
+                cfg_path=cfg_path,
+            )
+            + ["--error-file", self._error_file.name]
         )
         self.process = None
+
+    def deserialize_run_error(self) -> Optional[Union[str, Exception]]:
+        """Return task runtime error if its written to provided error file."""
+        return load_error_file(self._error_file)
 
     def _read_task_logs(self, stream):
         while True:
@@ -102,9 +112,12 @@ class BaseTaskRunner(LoggingMixin):
                 line = line.decode('utf-8')
             if not line:
                 break
-            self.log.info('Job %s: Subtask %s %s',
-                          self._task_instance.job_id, self._task_instance.task_id,
-                          line.rstrip('\n'))
+            self.log.info(
+                'Job %s: Subtask %s %s',
+                self._task_instance.job_id,
+                self._task_instance.task_id,
+                line.rstrip('\n'),
+            )
 
     def run_command(self, run_with=None):
         """
@@ -120,7 +133,7 @@ class BaseTaskRunner(LoggingMixin):
 
         self.log.info("Running on host: %s", get_hostname())
         self.log.info('Running: %s', full_cmd)
-        # pylint: disable=subprocess-popen-preexec-fn
+        # pylint: disable=subprocess-popen-preexec-fn,consider-using-with
         proc = subprocess.Popen(
             full_cmd,
             stdout=subprocess.PIPE,
@@ -128,7 +141,7 @@ class BaseTaskRunner(LoggingMixin):
             universal_newlines=True,
             close_fds=True,
             env=os.environ.copy(),
-            preexec_fn=os.setsid
+            preexec_fn=os.setsid,
         )
 
         # Start daemon thread to read subprocess logging output
@@ -141,12 +154,10 @@ class BaseTaskRunner(LoggingMixin):
         return proc
 
     def start(self):
-        """
-        Start running the task instance in a subprocess.
-        """
+        """Start running the task instance in a subprocess."""
         raise NotImplementedError()
 
-    def return_code(self):
+    def return_code(self) -> Optional[int]:
         """
         :return: The return code associated with running the task instance or
             None if the task is not yet done.
@@ -154,18 +165,15 @@ class BaseTaskRunner(LoggingMixin):
         """
         raise NotImplementedError()
 
-    def terminate(self):
-        """
-        Kill the running task instance.
-        """
+    def terminate(self) -> None:
+        """Force kill the running task instance."""
         raise NotImplementedError()
 
-    def on_finish(self):
-        """
-        A callback that should be called when this is done running.
-        """
+    def on_finish(self) -> None:
+        """A callback that should be called when this is done running."""
         if self._cfg_path and os.path.isfile(self._cfg_path):
             if self.run_as_user:
                 subprocess.call(['sudo', 'rm', self._cfg_path], close_fds=True)
             else:
                 os.remove(self._cfg_path)
+        self._error_file.close()

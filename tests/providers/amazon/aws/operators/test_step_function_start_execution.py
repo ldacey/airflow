@@ -34,7 +34,6 @@ REGION_NAME = 'us-west-2'
 
 
 class TestStepFunctionStartExecutionOperator(unittest.TestCase):
-
     def setUp(self):
         self.mock_context = MagicMock()
 
@@ -46,22 +45,24 @@ class TestStepFunctionStartExecutionOperator(unittest.TestCase):
             name=NAME,
             state_machine_input=INPUT,
             aws_conn_id=AWS_CONN_ID,
-            region_name=REGION_NAME
+            region_name=REGION_NAME,
         )
 
         # Then
-        self.assertEqual(TASK_ID, operator.task_id)
-        self.assertEqual(STATE_MACHINE_ARN, operator.state_machine_arn)
-        self.assertEqual(NAME, operator.name)
-        self.assertEqual(INPUT, operator.input)
-        self.assertEqual(AWS_CONN_ID, operator.aws_conn_id)
-        self.assertEqual(REGION_NAME, operator.region_name)
+        assert TASK_ID == operator.task_id
+        assert STATE_MACHINE_ARN == operator.state_machine_arn
+        assert NAME == operator.name
+        assert INPUT == operator.input
+        assert AWS_CONN_ID == operator.aws_conn_id
+        assert REGION_NAME == operator.region_name
 
     @mock.patch('airflow.providers.amazon.aws.operators.step_function_start_execution.StepFunctionHook')
     def test_execute(self, mock_hook):
         # Given
-        hook_response = 'arn:aws:states:us-east-1:123456789012:execution:'\
-                        'pseudo-state-machine:020f5b16-b1a1-4149-946f-92dd32d97934'
+        hook_response = (
+            'arn:aws:states:us-east-1:123456789012:execution:'
+            'pseudo-state-machine:020f5b16-b1a1-4149-946f-92dd32d97934'
+        )
 
         hook_instance = mock_hook.return_value
         hook_instance.start_execution.return_value = hook_response
@@ -72,11 +73,11 @@ class TestStepFunctionStartExecutionOperator(unittest.TestCase):
             name=NAME,
             state_machine_input=INPUT,
             aws_conn_id=AWS_CONN_ID,
-            region_name=REGION_NAME
+            region_name=REGION_NAME,
         )
 
         # When
         result = operator.execute(self.mock_context)
 
         # Then
-        self.assertEqual(hook_response, result)
+        assert hook_response == result

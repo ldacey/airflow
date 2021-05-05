@@ -15,6 +15,8 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+from typing import Any, Optional
+
 from airflow.models import BaseOperator
 from airflow.providers.snowflake.hooks.snowflake import SnowflakeHook
 from airflow.utils.decorators import apply_defaults
@@ -22,9 +24,14 @@ from airflow.utils.decorators import apply_defaults
 
 class SnowflakeOperator(BaseOperator):
     """
-    Executes sql code in a Snowflake database
+    Executes SQL code in a Snowflake database
 
-    :param snowflake_conn_id: reference to specific snowflake connection id
+    .. seealso::
+        For more information on how to use this operator, take a look at the guide:
+        :ref:`howto/operator:SnowflakeOperator`
+
+    :param snowflake_conn_id: Reference to
+        :ref:`Snowflake connection id<howto/connection:snowflake>`
     :type snowflake_conn_id: str
     :param sql: the sql code to be executed. (templated)
     :type sql: Can receive a str representing a sql statement,
@@ -55,6 +62,9 @@ class SnowflakeOperator(BaseOperator):
         'https://<your_okta_account_name>.okta.com' to authenticate
         through native Okta.
     :type authenticator: str
+    :param session_parameters: You can set session-level parameters at
+        the time you connect to Snowflake
+    :type session_parameters: dict
     """
 
     template_fields = ('sql',)
@@ -63,9 +73,20 @@ class SnowflakeOperator(BaseOperator):
 
     @apply_defaults
     def __init__(
-            self, *, sql, snowflake_conn_id='snowflake_default', parameters=None,
-            autocommit=True, warehouse=None, database=None, role=None,
-            schema=None, authenticator=None, **kwargs):
+        self,
+        *,
+        sql: Any,
+        snowflake_conn_id: str = 'snowflake_default',
+        parameters: Optional[dict] = None,
+        autocommit: bool = True,
+        warehouse: Optional[str] = None,
+        database: Optional[str] = None,
+        role: Optional[str] = None,
+        schema: Optional[str] = None,
+        authenticator: Optional[str] = None,
+        session_parameters: Optional[dict] = None,
+        **kwargs,
+    ) -> None:
         super().__init__(**kwargs)
         self.snowflake_conn_id = snowflake_conn_id
         self.sql = sql
@@ -76,24 +97,28 @@ class SnowflakeOperator(BaseOperator):
         self.role = role
         self.schema = schema
         self.authenticator = authenticator
+        self.session_parameters = session_parameters
+        self.query_ids = []
 
-    def get_hook(self):
+    def get_hook(self) -> SnowflakeHook:
         """
         Create and return SnowflakeHook.
         :return: a SnowflakeHook instance.
         :rtype: SnowflakeHook
         """
-        return SnowflakeHook(snowflake_conn_id=self.snowflake_conn_id,
-                             warehouse=self.warehouse, database=self.database,
-                             role=self.role, schema=self.schema, authenticator=self.authenticator)
+        return SnowflakeHook(
+            snowflake_conn_id=self.snowflake_conn_id,
+            warehouse=self.warehouse,
+            database=self.database,
+            role=self.role,
+            schema=self.schema,
+            authenticator=self.authenticator,
+            session_parameters=self.session_parameters,
+        )
 
-    def execute(self, context):
-        """
-        Run query on snowflake
-        """
+    def execute(self, context: Any) -> None:
+        """Run query on snowflake"""
         self.log.info('Executing: %s', self.sql)
         hook = self.get_hook()
-        hook.run(
-            self.sql,
-            autocommit=self.autocommit,
-            parameters=self.parameters)
+        hook.run(self.sql, autocommit=self.autocommit, parameters=self.parameters)
+        self.query_ids = hook.query_ids
